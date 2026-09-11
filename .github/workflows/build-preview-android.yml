@@ -69,6 +69,20 @@ jobs:
           current = props.read_text() if props.exists() else ""
           props.write_text(current + "".join(f"\n{line}" for line in extra if line not in current))
 
+          if "useLegacyPackaging" not in text:
+              text = text.replace(
+                  "android {",
+                  "android {\n    packagingOptions {\n        jniLibs {\n            useLegacyPackaging true\n        }\n    }",
+                  1,
+              )
+              gradle.write_text(text)
+
+          manifest = Path("app/src/main/AndroidManifest.xml")
+          if manifest.exists():
+              xml = manifest.read_text()
+              if "extractNativeLibs" not in xml:
+                  manifest.write_text(xml.replace("<application", '<application android:extractNativeLibs="true"', 1))
+
           PY
 
       - name: Build standalone release APK

@@ -2,16 +2,11 @@
   "expo": {
     "name": "Mkulima",
     "slug": "mkulima-farmer",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "mkulima",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F5F3EA"
-    },
     "android": {
       "package": "com.mkulimascore.farmer",
       "adaptiveIcon": {
@@ -41,13 +36,6 @@
           "photosPermission": "Allow Mkulima to access photos you choose as farm and business records.",
           "cameraPermission": "Allow Mkulima to use the camera when you choose to add a farm or business record.",
           "microphonePermission": false
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#1A5C35"
         }
       ],
       "expo-secure-store",

@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import * as Network from 'expo-network';
-import { router } from 'expo-router';
 import type {
   ActivityItem,
   AppSettings,
@@ -125,7 +124,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   });
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
-  const weatherRegistrationAttempted = useRef(false);
 
   const refresh = useCallback(async () => {
     if (refreshInFlight.current) return;
@@ -289,40 +287,6 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       void refresh();
     }, 0);
     return () => clearTimeout(handle);
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!data.ready || weatherRegistrationAttempted.current) return;
-    weatherRegistrationAttempted.current = true;
-    void registerSevereWeatherAlerts(data.settings.severeWeatherAlerts).catch(() => {
-      // Local notifications remain available even when push registration is unavailable.
-    });
-  }, [data.ready, data.settings.severeWeatherAlerts]);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    let remove: (() => void) | undefined;
-    void (async () => {
-      try {
-        const Notifications = await import('expo-notifications');
-        const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-          const payload = response.notification.request.content.data as { notificationId?: string; deepLink?: string; alertType?: string } | undefined;
-          void (async () => {
-            if (payload?.notificationId) {
-              const { markNotificationRead } = await import('@/db/database');
-              await markNotificationRead(payload.notificationId);
-            }
-            await refresh();
-            if (payload?.deepLink) router.push(payload.deepLink as never);
-            else if (payload?.alertType === 'severe_weather') router.push('/notifications' as never);
-          })();
-        });
-        remove = () => subscription.remove();
-      } catch {
-        // Notification taps must not prevent the app from launching.
-      }
-    })();
-    return () => remove?.();
   }, [refresh]);
 
   useEffect(() => {

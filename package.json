@@ -6,6 +6,7 @@
     "autolinking": {
       "android": {
         "exclude": [
+          "expo-notifications",
           "react-native-maps",
           "react-native-reanimated",
           "react-native-worklets"
