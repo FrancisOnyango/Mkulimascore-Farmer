@@ -13,6 +13,7 @@
     "preview": {
       "distribution": "internal",
       "android": {
+        "image": "latest",
         "buildType": "apk"
       },
       "env": {
@@ -22,6 +23,7 @@
     "staging": {
       "distribution": "internal",
       "android": {
+        "image": "latest",
         "buildType": "apk"
       },
       "env": {
@@ -32,6 +34,7 @@
     },
     "production": {
       "android": {
+        "image": "latest",
         "buildType": "app-bundle"
       }
     }

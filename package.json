@@ -24,6 +24,7 @@
     "prebuild": "expo prebuild --clean",
     "export:web": "expo export --platform web",
     "build:preview": "eas build -p android --profile preview",
+    "build:staging": "eas build -p android --profile staging",
     "build:production": "eas build -p android --profile production"
   },
   "dependencies": {

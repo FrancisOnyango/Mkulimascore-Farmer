@@ -2,8 +2,6 @@ name: Mkulima-preview-apk
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 jobs:
   android-preview:
