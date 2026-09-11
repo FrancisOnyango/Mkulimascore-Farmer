@@ -16,6 +16,14 @@ export type WeatherAlertRegistration = {
  */
 export async function registerSevereWeatherAlerts(enabled: boolean): Promise<WeatherAlertRegistration> {
   if (!enabled || Platform.OS === 'web') return { enabled, permission: 'unsupported' };
+  try {
+    return await registerSevereWeatherAlertsUnsafe(enabled);
+  } catch {
+    return { enabled, permission: 'unsupported' };
+  }
+}
+
+async function registerSevereWeatherAlertsUnsafe(enabled: boolean): Promise<WeatherAlertRegistration> {
   const current = await Notifications.getPermissionsAsync();
   let status = current.status;
   if (status !== Notifications.PermissionStatus.GRANTED) {
@@ -30,7 +38,8 @@ export async function registerSevereWeatherAlerts(enabled: boolean): Promise<Wea
     sound: 'default'
   });
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
+  if (!projectId) return { enabled, permission: status };
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
   const mode = process.env.EXPO_PUBLIC_APP_MODE ?? 'demo';
   if (mode !== 'demo' && baseUrl) {
