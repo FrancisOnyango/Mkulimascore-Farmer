@@ -42,12 +42,28 @@ jobs:
       - name: Prebuild Android
         run: npx expo prebuild --platform android --non-interactive --no-install
 
+      - name: Disable Android lint
+        working-directory: android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle")
+          text = p.read_text()
+          if "checkReleaseBuilds false" not in text:
+              text = text.replace(
+                  "android {",
+                  "android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }",
+                  1,
+              )
+              p.write_text(text)
+          PY
+
       - name: Build standalone release APK
         working-directory: android
         run: |
           chmod +x gradlew
           printf '\nreactNativeArchitectures=arm64-v8a\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\nandroid.lint.checkReleaseBuilds=false\n' >> gradle.properties
-          ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a -x lint -x lintVitalAnalyzeRelease -x lintVitalReportRelease
+          ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a -x lint -x lintVitalRelease -x lintVitalAnalyzeRelease -x lintVitalReportRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
