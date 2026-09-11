@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   android-staging:
     runs-on: ubuntu-latest
@@ -35,23 +39,26 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android packages
-        run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+        with:
+          packages: >
+            tools
+            platform-tools
+            platforms;android-36
+            build-tools;36.0.0
+            ndk;27.1.12297006
+            cmake;3.22.1
 
       - name: Install dependencies
         run: npm ci
 
       - name: Prebuild Android
-        run: npx expo prebuild --platform android --non-interactive
+        run: npx expo prebuild --platform android --non-interactive --no-install
 
       - name: Build standalone release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          echo "reactNativeArchitectures=arm64-v8a" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g" >> gradle.properties
+          printf '\nreactNativeArchitectures=arm64-v8a\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\nandroid.lint.checkReleaseBuilds=false\n' >> gradle.properties
           ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a -x lint -x lintVitalAnalyzeRelease -x lintVitalReportRelease
 
       - name: Upload APK
@@ -60,3 +67,4 @@ jobs:
           name: Mkulima-staging-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          retention-days: 14
