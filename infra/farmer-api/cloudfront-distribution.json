@@ -1,0 +1,87 @@
+{
+  "CallerReference": "mkulima-farmer-staging-20260911",
+  "Aliases": {
+    "Quantity": 1,
+    "Items": ["staging-api.mkulimascore.com"]
+  },
+  "DefaultRootObject": "",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "farmer-lambda-url",
+        "DomainName": "v27oclbqdpqr576iubuqxdumpy0qlviw.lambda-url.us-east-1.on.aws",
+        "CustomOriginConfig": {
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "https-only",
+          "OriginSslProtocols": {
+            "Quantity": 1,
+            "Items": ["TLSv1.2"]
+          },
+          "OriginReadTimeout": 30,
+          "OriginKeepaliveTimeout": 5
+        }
+      }
+    ]
+  },
+  "OriginGroups": {
+    "Quantity": 0
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "farmer-lambda-url",
+    "ViewerProtocolPolicy": "https-only",
+    "AllowedMethods": {
+      "Quantity": 7,
+      "Items": ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"],
+      "CachedMethods": {
+        "Quantity": 2,
+        "Items": ["GET", "HEAD"]
+      }
+    },
+    "Compress": true,
+    "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+    "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+    "SmoothStreaming": false,
+    "FieldLevelEncryptionId": "",
+    "TrustedSigners": {
+      "Enabled": false,
+      "Quantity": 0
+    },
+    "TrustedKeyGroups": {
+      "Enabled": false,
+      "Quantity": 0
+    }
+  },
+  "CacheBehaviors": {
+    "Quantity": 0
+  },
+  "CustomErrorResponses": {
+    "Quantity": 0
+  },
+  "Comment": "Mkulima farmer staging API",
+  "Logging": {
+    "Enabled": false,
+    "IncludeCookies": false,
+    "Bucket": "",
+    "Prefix": ""
+  },
+  "PriceClass": "PriceClass_100",
+  "Enabled": true,
+  "ViewerCertificate": {
+    "ACMCertificateArn": "arn:aws:acm:us-east-1:295552411264:certificate/3b449678-470d-4167-ba1b-d76dcb37c449",
+    "SSLSupportMethod": "sni-only",
+    "MinimumProtocolVersion": "TLSv1.2_2021",
+    "Certificate": "arn:aws:acm:us-east-1:295552411264:certificate/3b449678-470d-4167-ba1b-d76dcb37c449",
+    "CertificateSource": "acm"
+  },
+  "Restrictions": {
+    "GeoRestriction": {
+      "RestrictionType": "none",
+      "Quantity": 0
+    }
+  },
+  "WebACLId": "",
+  "HttpVersion": "http2",
+  "IsIPV6Enabled": true
+}

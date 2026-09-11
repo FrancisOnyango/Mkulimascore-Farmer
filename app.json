@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Mkulima",
+    "slug": "mkulima-farmer",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "mkulima",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.mkulimascore.farmer",
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F3EA"
+      },
+      "permissions": [
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.mkulimascore.farmer",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Mkulima to access photos you choose as farm and business records.",
+          "cameraPermission": "Allow Mkulima to use the camera when you choose to add a farm or business record.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#1A5C35"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Mkulima to show your location near your farm and help you verify farm visits."
+        }
+      ]
+    ],
+    "extra": {
+      "appRole": "farmer"
+    }
+  }
+}
