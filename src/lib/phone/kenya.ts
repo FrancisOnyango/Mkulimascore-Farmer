@@ -25,3 +25,13 @@ export function isPlausibleKenyaPhone(value: string) {
   if (digits.startsWith('0')) return digits.length >= 10;
   return digits.length >= 9;
 }
+
+export function formatKenyaPhoneInput(value: string) {
+  let local = digitsOnly(value);
+  if (local.startsWith('254')) local = `0${local.slice(3)}`;
+  if (local.length > 0 && !local.startsWith('0')) local = `0${local}`;
+  local = local.slice(0, 10);
+  if (local.length <= 4) return local;
+  if (local.length <= 7) return `${local.slice(0, 4)} ${local.slice(4)}`;
+  return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`;
+}

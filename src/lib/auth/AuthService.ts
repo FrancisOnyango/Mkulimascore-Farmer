@@ -1,6 +1,14 @@
 import { clearAccessToken, getAccessToken, setAccessToken } from '@/lib/auth/tokenStore';
 import { clearStoredMsid, setStoredMsid } from '@/lib/session/sessionStore';
 import { isPlausibleKenyaPhone } from '@/lib/phone/kenya';
+import {
+  isTrialChallenge,
+  isTrialOtp,
+  isTrialPhone,
+  TRIAL_CHALLENGE_ID,
+  TRIAL_MSID,
+  TRIAL_SESSION_TOKEN
+} from '@/lib/auth/trialCredentials';
 import * as Crypto from 'expo-crypto';
 
 export interface AuthSession {
@@ -18,11 +26,16 @@ export interface AuthService {
 
 class DemoAuthService implements AuthService {
   async requestOtp(phone: string) {
+    if (isTrialPhone(phone)) return { challengeId: TRIAL_CHALLENGE_ID };
     if (phone.trim().length < 9) throw new Error('PHONE_INVALID');
     return { challengeId: 'demo-otp-challenge' };
   }
 
   async verifyOtp(challengeId: string, code: string) {
+    if (isTrialChallenge(challengeId)) {
+      if (!isTrialOtp(code)) throw new Error('OTP_INVALID');
+      return createTrialSession();
+    }
     if (!challengeId || code.trim().length < 4) throw new Error('OTP_INVALID');
     const session: AuthSession = {
       accessToken: 'demo-local-session-token',
@@ -44,6 +57,7 @@ class ProductionAuthService implements AuthService {
 
   async requestOtp(identifier: string) {
     const normalized = identifier.trim();
+    if (isTrialPhone(normalized)) return { challengeId: TRIAL_CHALLENGE_ID };
     if (normalized.length < 3) throw new Error('IDENTIFIER_INVALID');
     if (isAccountLogin(normalized)) {
       return { challengeId: `staff:${normalized}` };
@@ -60,6 +74,10 @@ class ProductionAuthService implements AuthService {
   }
 
   async verifyOtp(challengeId: string, code: string) {
+    if (isTrialChallenge(challengeId)) {
+      if (!isTrialOtp(code)) throw new Error('OTP_INVALID');
+      return createTrialSession();
+    }
     if (challengeId.startsWith('staff:')) {
       return this.verifyStaffPassword(challengeId.slice('staff:'.length), code);
     }
@@ -139,4 +157,14 @@ export function createAuthService(): AuthService {
 
 function isAccountLogin(value: string) {
   return value.includes('@') || !isPlausibleKenyaPhone(value);
+}
+
+async function createTrialSession(): Promise<AuthSession> {
+  const session: AuthSession = {
+    accessToken: TRIAL_SESSION_TOKEN,
+    msid: TRIAL_MSID
+  };
+  await setAccessToken(session.accessToken);
+  await setStoredMsid(session.msid);
+  return session;
 }

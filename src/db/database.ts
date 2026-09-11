@@ -1286,6 +1286,16 @@ export async function markReturningSession() {
   await setMeta('onboarding_draft', JSON.stringify({ intent: 'returning', step: 'done' }));
 }
 
+export async function restoreSampleFarm() {
+  await initDb();
+  const db = await getDb();
+  await seedDemoData(db);
+  await ensureDemoFarmBoundaries(db);
+  await ensureDemoIntelligence(db);
+  await db.runAsync('INSERT OR REPLACE INTO app_metadata (key, value) VALUES (?, ?)', 'seeded', '1');
+  await markReturningSession();
+}
+
 export async function requestInstitutionLink(institutionName: string, memberNumber?: string) {
   await initDb();
   const db = await getDb();

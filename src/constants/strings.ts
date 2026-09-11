@@ -15,10 +15,21 @@ export const strings = {
   welcome: {
     line1: 'Your farm.',
     line2: 'Your records.',
-    line3: 'Your Mkulima Passport.',
-    support: 'Keep your farm information in one place and build a stronger agricultural profile over time.',
-    start: 'Get started',
-    signIn: 'Sign in'
+    line3: 'Your Passport.',
+    support: 'Keep farm information on this phone and build a Mkulima Passport you can share only when you choose.',
+    start: 'Create my Passport',
+    signIn: 'I already have a Passport',
+    kenya: 'Kenya',
+    brand: 'Mkulima',
+    brandLine: 'Farm records that stay with you.',
+    saved: 'Saved on this phone',
+    control: 'You control sharing',
+    noLoan: 'No loan is promised',
+    trialTitle: 'Try the sample farm',
+    trialBody: 'No SMS needed. This is a practice farm, not a real person.',
+    trialAction: 'Open sample farm',
+    trialPhone: 'Phone',
+    trialCode: 'Code'
   },
   consent: {
     title: 'Your information, your control',

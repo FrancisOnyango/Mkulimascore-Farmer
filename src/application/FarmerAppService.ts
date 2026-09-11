@@ -21,6 +21,7 @@ import {
   getRequest,
   getSessionState,
   markReturningSession,
+  restoreSampleFarm,
   requestInstitutionLink,
   saveOnboardingDraft,
   setOnboardingIntent,
@@ -79,6 +80,7 @@ export const FarmerAppService = {
   beginSelfOnboarding,
   saveOnboardingDraft,
   markReturningSession,
+  restoreSampleFarm,
   completeSelfOnboarding(draft: OnboardingDraft) {
     return completeSelfOnboarding(draft);
   },
