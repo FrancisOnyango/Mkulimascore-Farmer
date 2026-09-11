@@ -4,11 +4,18 @@
     "slug": "mkulima-farmer",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "mkulima",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F3EA"
+    },
     "android": {
       "package": "com.mkulimascore.farmer",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F5F3EA"
       },
       "permissions": [
@@ -39,10 +46,12 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/notification-icon.png",
           "color": "#1A5C35"
         }
       ],
       "expo-secure-store",
+      "expo-sqlite",
       [
         "expo-location",
         {

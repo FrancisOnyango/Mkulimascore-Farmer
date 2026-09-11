@@ -1,11 +1,9 @@
-import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getAccessToken } from '@/lib/auth/tokenStore';
 
 export type WeatherAlertRegistration = {
   enabled: boolean;
-  permission: Notifications.PermissionStatus | 'unsupported' | 'backend-unavailable';
+  permission: string;
   token?: string;
 };
 
@@ -24,6 +22,8 @@ export async function registerSevereWeatherAlerts(enabled: boolean): Promise<Wea
 }
 
 async function registerSevereWeatherAlertsUnsafe(enabled: boolean): Promise<WeatherAlertRegistration> {
+  const Notifications = await import('expo-notifications');
+  const Constants = await import('expo-constants');
   const current = await Notifications.getPermissionsAsync();
   let status = current.status;
   if (status !== Notifications.PermissionStatus.GRANTED) {
@@ -37,7 +37,7 @@ async function registerSevereWeatherAlertsUnsafe(enabled: boolean): Promise<Weat
     vibrationPattern: [0, 250, 250, 250],
     sound: 'default'
   });
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  const projectId = Constants.default.expoConfig?.extra?.eas?.projectId ?? Constants.default.easConfig?.projectId;
   if (!projectId) return { enabled, permission: status };
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');

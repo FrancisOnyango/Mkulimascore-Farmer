@@ -42,27 +42,39 @@ jobs:
       - name: Prebuild Android
         run: npx expo prebuild --platform android --non-interactive --no-install
 
-      - name: Disable Android lint
+      - name: Harden Android release
         working-directory: android
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path("app/build.gradle")
-          text = p.read_text()
+
+          gradle = Path("app/build.gradle")
+          text = gradle.read_text()
           if "checkReleaseBuilds false" not in text:
               text = text.replace(
                   "android {",
                   "android {\n    lint {\n        checkReleaseBuilds false\n        abortOnError false\n    }",
                   1,
               )
-              p.write_text(text)
+              gradle.write_text(text)
+
+          props = Path("gradle.properties")
+          extra = [
+              "reactNativeArchitectures=arm64-v8a",
+              "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g",
+              "android.lint.checkReleaseBuilds=false",
+              "android.enableMinifyInReleaseBuilds=false",
+              "android.enableShrinkResourcesInReleaseBuilds=false",
+          ]
+          current = props.read_text() if props.exists() else ""
+          props.write_text(current + "".join(f"\n{line}" for line in extra if line not in current))
+
           PY
 
       - name: Build standalone release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          printf '\nreactNativeArchitectures=arm64-v8a\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\nandroid.lint.checkReleaseBuilds=false\n' >> gradle.properties
           ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
       - name: Upload APK

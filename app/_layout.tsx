@@ -4,20 +4,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AppDataProvider } from '@/context/AppDataContext';
 import { colors } from '@/constants/theme';
-import * as Notifications from 'expo-notifications';
-
-try {
-    Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true
-    })
-  });
-} catch {
-  // Notification presentation must not prevent the app from launching.
-}
 
 type StartupBoundaryState = { error: Error | null };
 
