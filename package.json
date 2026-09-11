@@ -6,7 +6,11 @@
     "autolinking": {
       "android": {
         "exclude": [
+          "expo-document-picker",
+          "expo-image-picker",
+          "expo-location",
           "expo-notifications",
+          "expo-speech",
           "react-native-maps",
           "react-native-reanimated",
           "react-native-worklets"

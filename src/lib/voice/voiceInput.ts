@@ -1,4 +1,3 @@
-import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 
 type BrowserRecognition = {
@@ -34,6 +33,12 @@ export async function startVoiceInput(language: 'en' | 'sw'): Promise<string> {
 }
 
 export function speakAnswer(text: string, language: 'en' | 'sw') {
-  Speech.stop();
-  Speech.speak(text, { language: language === 'sw' ? 'sw-KE' : 'en-KE', rate: 0.9 });
+  void import('expo-speech')
+    .then((Speech) => {
+      Speech.stop();
+      Speech.speak(text, { language: language === 'sw' ? 'sw-KE' : 'en-KE', rate: 0.9 });
+    })
+    .catch(() => {
+      // Speech is optional on this Android build.
+    });
 }

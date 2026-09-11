@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2 } from '@/components/Typography';
 import { Card } from '@/components/Card';
@@ -31,18 +29,28 @@ export default function AddRecord() {
   const [error, setError] = useState<string | null>(null);
 
   async function takePhoto() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Camera permission', 'Camera access is needed only when you choose to photograph a record.');
-      return;
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Camera permission', 'Camera access is needed only when you choose to photograph a record.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.78, mediaTypes: ['images'] });
+      if (!result.canceled) setDraft((current) => ({ ...current, uri: result.assets[0]?.uri ?? null }));
+    } catch {
+      Alert.alert('Camera unavailable', 'Type a place or add a record later. Camera is not available in this install.');
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.78, mediaTypes: ['images'] });
-    if (!result.canceled) setDraft((current) => ({ ...current, uri: result.assets[0]?.uri ?? null }));
   }
 
   async function chooseDocument() {
-    const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
-    if (!result.canceled) setDraft((current) => ({ ...current, uri: result.assets[0]?.uri ?? null }));
+    try {
+      const DocumentPicker = await import('expo-document-picker');
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
+      if (!result.canceled) setDraft((current) => ({ ...current, uri: result.assets[0]?.uri ?? null }));
+    } catch {
+      Alert.alert('Files unavailable', 'You can still add details later. File picker is not available in this install.');
+    }
   }
 
   async function save() {

@@ -1,9 +1,8 @@
 import '@/lib/debug/bootstrap';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AppDataProvider } from '@/context/AppDataContext';
 import { colors } from '@/constants/theme';
 
 type StartupBoundaryState = { error: Error | null };
@@ -29,11 +28,21 @@ class StartupBoundary extends React.Component<React.PropsWithChildren, StartupBo
 }
 
 export default function RootLayout() {
-  return (
-    <StartupBoundary>
-      <AppDataProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{
+  const [Provider, setProvider] = useState<React.ComponentType<{ children: React.ReactNode }> | null>(null);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      void import('@/context/AppDataContext')
+        .then((module) => setProvider(() => module.AppDataProvider))
+        .catch(() => undefined);
+    }, 0);
+    return () => clearTimeout(handle);
+  }, []);
+
+  const stack = (
+    <>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{
           headerStyle: { backgroundColor: colors.canvas },
           headerShadowVisible: false,
           headerTintColor: colors.ink,
@@ -65,7 +74,12 @@ export default function RootLayout() {
           <Stack.Screen name="activity" options={{ title: 'Activity' }} />
           <Stack.Screen name="sync" options={{ title: 'Sync' }} />
         </Stack>
-      </AppDataProvider>
+    </>
+  );
+
+  return (
+    <StartupBoundary>
+      {Provider ? <Provider>{stack}</Provider> : stack}
     </StartupBoundary>
   );
 }

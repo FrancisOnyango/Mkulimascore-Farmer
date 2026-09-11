@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import * as Location from 'expo-location';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Input } from '@/components/Input';
@@ -34,6 +33,7 @@ export default function FarmOnboarding() {
     setLocating(true);
     setError(null);
     try {
+      const Location = await import('expo-location');
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
         setError('Location permission is needed only if you want us to find the farm. You can type a place instead.');

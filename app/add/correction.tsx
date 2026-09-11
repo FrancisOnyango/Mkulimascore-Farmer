@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
@@ -26,18 +24,28 @@ export default function Correction() {
   const [error, setError] = useState<string | null>(null);
 
   async function takePhoto() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Camera permission', 'Camera access is needed only when you choose to photograph supporting evidence.');
-      return;
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Camera permission', 'Camera access is needed only when you choose to photograph supporting evidence.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.78, mediaTypes: ['images'] });
+      if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
+    } catch {
+      Alert.alert('Camera unavailable', 'You can type the correction without a photo.');
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.78, mediaTypes: ['images'] });
-    if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
   }
 
   async function chooseDocument() {
-    const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
-    if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
+    try {
+      const DocumentPicker = await import('expo-document-picker');
+      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
+      if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
+    } catch {
+      Alert.alert('Files unavailable', 'You can type the correction without a file.');
+    }
   }
 
   async function save() {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mkulima",
     "slug": "mkulima-farmer",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "mkulima",
@@ -30,22 +30,8 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow Mkulima to access photos you choose as farm and business records.",
-          "cameraPermission": "Allow Mkulima to use the camera when you choose to add a farm or business record.",
-          "microphonePermission": false
-        }
-      ],
       "expo-secure-store",
-      "expo-sqlite",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow Mkulima to show your location near your farm and help you verify farm visits."
-        }
-      ]
+      "expo-sqlite"
     ],
     "extra": {
       "appRole": "farmer"
