@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
 import { useAppData } from '@/context/AppDataContext';
 import { activityTypes } from '@/lib/enterprises/nextAction';
+import { inferFarmCycle } from '@/lib/intelligence/cycle';
 import { colors, radius, spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/utils/format';
 
@@ -14,13 +15,17 @@ export default function Activity() {
   const { activity, enterprises, outbox } = useAppData();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = enterprises.find((item) => item.id === selectedId) ?? enterprises.find((item) => item.primary) ?? enterprises[0];
-  const types = useMemo(() => activityTypes(selected?.sector), [selected]);
+  const cycle = useMemo(() => inferFarmCycle(selected ? [selected] : enterprises, activity), [activity, enterprises, selected]);
+  const types = useMemo(() => activityTypes(selected?.sector, cycle.stage), [cycle.stage, selected]);
   const unsynced = outbox.filter((item) => item.state !== 'SYNCED').length;
 
   return (
     <AppShell>
       <View style={styles.header}>
-        <H1>Activity</H1>
+        <View>
+          <H1>Farm diary</H1>
+          <Caption style={{ marginTop: 4 }}>{cycle.diaryHint}</Caption>
+        </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add"

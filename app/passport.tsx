@@ -1,6 +1,6 @@
 import React from 'react';
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, Eyebrow, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
@@ -10,20 +10,27 @@ import { useAppData } from '@/context/AppDataContext';
 import { colors, spacing } from '@/constants/theme';
 import { strings } from '@/constants/strings';
 import { formatDate } from '@/lib/utils/format';
+import { passportNextActions } from '@/lib/passport/nextActions';
+import { profileTimeline } from '@/lib/intelligence/timeline';
+import { incomeSnapshot } from '@/lib/intelligence/income';
 
 export default function PassportScreen() {
-  const { passport, farms, enterprises, consents, financing } = useAppData();
+  const { passport, farms, enterprises, consents, financing, records, activity } = useAppData();
   if (!passport) return <AppShell><Body>Loading passport...</Body></AppShell>;
   const activeConsents = consents.filter((consent) => consent.status === 'active');
+  const nextActions = passportNextActions({ passport, farms, enterprises, records, consents, activity });
+  const timeline = profileTimeline({ passport, farms, enterprises, records, consents });
+  const income = incomeSnapshot(activity, enterprises);
   const readinessItems = [
     { label: 'Identity', complete: Boolean(passport.displayName), next: 'Add your name' },
     { label: 'Farm', complete: farms.length > 0, next: 'Add a farm' },
+    { label: 'Place', complete: Boolean(farms[0]?.latitude && farms[0]?.longitude), next: 'Mark farm place' },
     { label: 'Enterprises', complete: enterprises.length > 0, next: 'Add an enterprise' },
     { label: 'Records', complete: passport.evidenceStatus.toLowerCase() !== 'none' && passport.evidenceStatus !== 'No records yet', next: 'Add a production record' },
     { label: 'Institution', complete: consents.length > 0 || passport.affiliations.length > 0, next: 'Connect a cooperative' }
   ];
   const strength = readinessItems.filter((item) => item.complete).length >= 4 ? 'Strong farm profile' : readinessItems.filter((item) => item.complete).length >= 2 ? 'Good progress' : 'Just getting started';
-  const improve = readinessItems.filter((item) => !item.complete).map((item) => item.next);
+  const improve = nextActions.map((item) => item.title);
 
   return (
     <AppShell>
@@ -59,10 +66,19 @@ export default function PassportScreen() {
         </View>
       </Card>
       <Card style={{ marginTop: spacing.md }}>
-        <Caption>Profile status</Caption>
+        <Caption>Strengthen my profile</Caption>
         <H3 style={{ marginTop: spacing.xs }}>{strength}</H3>
+        <Body style={{ marginTop: spacing.sm }}>What you can improve. Not a score, and no points are promised.</Body>
         <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
-          {readinessItems.map((item) => (
+          {nextActions.length ? nextActions.map((item) => (
+            <Pressable key={item.id} style={styles.checkRow} onPress={() => router.push(item.route as never)} accessibilityRole="button">
+              <Text style={styles.check}>Next</Text>
+              <View style={{ flex: 1 }}>
+                <Body>{item.title}</Body>
+                <Caption>{item.why}</Caption>
+              </View>
+            </Pressable>
+          )) : readinessItems.map((item) => (
             <View key={item.label} style={styles.checkRow}>
               <Text style={[styles.check, item.complete && styles.checkComplete]}>{item.complete ? 'Yes' : '—'}</Text>
               <Body>{item.complete ? item.label : item.next}</Body>
@@ -70,6 +86,34 @@ export default function PassportScreen() {
           ))}
         </View>
       </Card>
+
+      {timeline.length ? (
+        <Card style={{ marginTop: spacing.md }}>
+          <Caption>How your record is growing</Caption>
+          <H3 style={{ marginTop: spacing.xs }}>Farm profile timeline</H3>
+          <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
+            {timeline.map((event) => (
+              <View key={event.id} style={styles.listRow}>
+                <View style={styles.dot} />
+                <View style={{ flex: 1 }}>
+                  <Body>{event.title}</Body>
+                  <Caption>{event.detail}{event.at ? ` · ${formatDate(event.at)}` : ''}</Caption>
+                </View>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
+      {income.line ? (
+        <Card style={{ marginTop: spacing.md }}>
+          <Caption>Income and sales</Caption>
+          <H3 style={{ marginTop: spacing.xs }}>Recent farm money</H3>
+          <Body style={{ marginTop: spacing.sm }}>{income.line}</Body>
+          {income.buyers.length ? <Caption style={{ marginTop: spacing.sm }}>Buyers: {income.buyers.join(' · ')}</Caption> : null}
+          <Caption style={{ marginTop: spacing.sm }}>Not full accounts. Only what you saved.</Caption>
+        </Card>
+      ) : null}
 
       <Section title="Affiliations" values={passport.affiliations} />
       <Section title="Farms" values={farms.map((farm) => `${farm.name} - ${farm.location}`)} />

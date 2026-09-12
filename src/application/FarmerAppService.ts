@@ -2,6 +2,8 @@ import type {
   CostSubmission,
   CorrectionSubmission,
   EvidenceRecord,
+  FarmPlaceKind,
+  FieldLook,
   ProductionSubmission,
   SaleSubmission
 } from '@/domain/types';
@@ -20,9 +22,14 @@ import {
   getFarm,
   getRequest,
   getSessionState,
+  listFarmerMarketNotes,
   markReturningSession,
   restoreSampleFarm,
+  requestBoundaryVerification,
   requestInstitutionLink,
+  saveFarmPlace,
+  saveFarmerMarketNote,
+  saveFieldLook,
   saveOnboardingDraft,
   setOnboardingIntent,
   setLowDataMode,
@@ -38,6 +45,31 @@ import {
 
 export const FarmerAppService = {
   getFarm,
+  listFarmerMarketNotes,
+  saveFarmPlace(input: {
+    farmId: string;
+    kind: FarmPlaceKind;
+    latitude: number;
+    longitude: number;
+    boundary?: { latitude: number; longitude: number }[];
+    boundarySource?: 'GPS_WALK' | 'DRAWN';
+    accuracyM?: number | null;
+  }) {
+    return saveFarmPlace(input);
+  },
+  saveFieldLook(farmId: string, fieldLook: FieldLook) {
+    return saveFieldLook(farmId, fieldLook);
+  },
+  saveFarmerMarketNote(input: {
+    farmId: string;
+    marketId: string;
+    marketName: string;
+    commodity: string;
+    priceKes: string;
+    unit?: string;
+  }) {
+    return saveFarmerMarketNote(input);
+  },
   getEnterprise,
   getRequest,
   getEvidenceRecord,
@@ -85,5 +117,6 @@ export const FarmerAppService = {
     return completeSelfOnboarding(draft);
   },
 
-  requestInstitutionLink
+  requestInstitutionLink,
+  requestBoundaryVerification
 };

@@ -60,6 +60,8 @@ export default function RootLayout() {
           <Stack.Screen name="add/record" options={{ title: 'Add record', presentation: 'modal' }} />
           <Stack.Screen name="add/correction" options={{ title: 'Request correction', presentation: 'modal' }} />
           <Stack.Screen name="farm/[id]" options={{ title: 'Farm' }} />
+          <Stack.Screen name="farm/map" options={{ title: 'Farm place' }} />
+          <Stack.Screen name="farm/compare" options={{ title: 'Compare markets' }} />
           <Stack.Screen name="enterprise/[id]" options={{ title: 'Enterprise' }} />
           <Stack.Screen name="request/[id]" options={{ title: 'Request' }} />
           <Stack.Screen name="records/[id]" options={{ title: 'Record' }} />

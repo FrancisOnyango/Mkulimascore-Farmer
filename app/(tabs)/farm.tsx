@@ -8,18 +8,33 @@ import { StatusPill } from '@/components/StatusPill';
 import { SectionHeader } from '@/components/SectionHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { useAppData } from '@/context/AppDataContext';
-import { LiveFarmMap } from '@/components/LiveFarmMap';
+import { FarmPlaceMap } from '@/components/FarmPlaceMap';
+import { buildFarmTwin } from '@/lib/intelligence/twin';
 import { colors, spacing } from '@/constants/theme';
 
 export default function Farms() {
-  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId } = useAppData();
+  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId, weather, climate, consents, passport, activity, markets } = useAppData();
   const primaryFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
   const farmEnterprises = enterprises.filter((enterprise) => enterprise.farmId === primaryFarm?.id);
   const farmRecords = records.filter((record) => !record.associatedFarmId || record.associatedFarmId === primaryFarm?.id);
   const verifiedRecords = farmRecords.filter((record) => record.status === 'verified').length;
+  const twin = primaryFarm
+    ? buildFarmTwin({
+      passport,
+      farm: primaryFarm,
+      farms,
+      enterprises: farmEnterprises,
+      records: farmRecords,
+      consents,
+      weather: weather.find((item) => item.farmId === primaryFarm.id),
+      climate,
+      markets,
+      activity
+    })
+    : null;
   const nextSteps = primaryFarm ? [
-    !primaryFarm.latitude ? 'Add farm location' : null,
-    !primaryFarm.mapped ? 'Detailed boundary not yet mapped' : null,
+    !primaryFarm.latitude ? 'Mark farm place' : null,
+    !primaryFarm.mapped ? 'Draw or walk the farm edge' : null,
     farmEnterprises.length === 0 ? 'Add an enterprise' : null,
     farmRecords.length === 0 ? 'Add a production record' : null
   ].filter(Boolean) as string[] : [];
@@ -49,13 +64,13 @@ export default function Farms() {
       </View>
 
       {primaryFarm ? (
-        <Card style={styles.visualCard}>
+        <Card style={styles.visualCard} onPress={() => router.push(`/farm/${primaryFarm.id}`)}>
           {primaryFarm.latitude !== undefined && primaryFarm.longitude !== undefined ? (
-            <LiveFarmMap farm={primaryFarm} />
+            <FarmPlaceMap farm={primaryFarm} height={200} />
           ) : (
             <View style={styles.locationPanel}>
-              <H3>Detailed boundary not yet mapped</H3>
-              <Caption style={{ marginTop: spacing.sm }}>A point or place name is enough for now. You can map the boundary later.</Caption>
+              <H3>Mark this farm place</H3>
+              <Caption style={{ marginTop: spacing.sm }}>A GPS point unlocks weather and the nearest market. Draw or walk the edge when you can.</Caption>
             </View>
           )}
           <View style={styles.visualFooter}>
@@ -72,12 +87,16 @@ export default function Farms() {
         <>
           <Card style={styles.progressCard}>
             <Caption>Your farm profile</Caption>
-            <H3 style={{ marginTop: spacing.xs }}>{nextSteps.length ? 'Good progress' : 'Strong farm profile'}</H3>
+            <View style={styles.row}>
+              <H3 style={{ marginTop: spacing.xs, flex: 1 }}>{twin?.health.label ?? (nextSteps.length ? 'Good progress' : 'Strong farm profile')}</H3>
+              {twin ? <StatusPill label={twin.cycle.label} tone="neutral" /> : null}
+            </View>
             <Body style={{ marginTop: spacing.sm }}>
-              {nextSteps.length
+              {twin?.health.line ?? (nextSteps.length
                 ? `Improve by: ${nextSteps.join(' · ')}`
-                : 'Location, enterprises and records are in place. Keep them current as the farm changes.'}
+                : 'Location, enterprises and records are in place. Keep them current as the farm changes.')}
             </Body>
+            {twin?.comparison ? <Caption style={{ marginTop: spacing.sm }}>{twin.comparison.line}</Caption> : null}
           </Card>
 
           <Card style={styles.overviewCard}>

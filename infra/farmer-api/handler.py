@@ -23,6 +23,8 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Key
 
+from market_intelligence import nearby_intelligence
+
 TABLE_NAME = os.environ["TABLE_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
 TEST_OTP = os.environ.get("TEST_OTP", "246810")
@@ -101,10 +103,83 @@ def route(method: str, path: str, event: dict[str, Any]):
         return respond(200, {"activity": items(farmer["msid"], "ACTIVITY#")})
     if path == "/api/v1/farmer/financing" and method == "GET":
         return respond(200, {"financing": items(farmer["msid"], "FINANCING#")})
+    if path == "/api/v1/farmer/market-intelligence/nearby" and method == "GET":
+        return market_nearby(farmer, event)
+    if path == "/api/v1/farmer/markets" and method == "GET":
+        return market_nearby(farmer, event)
 
     if path.startswith("/api/v1/farmer/"):
         return respond(404, {"detail": "Not Found"})
     return respond(404, {"detail": "Not Found"})
+
+
+def market_nearby(farmer: dict[str, Any], event: dict[str, Any]):
+    try:
+        return _market_nearby(farmer, event)
+    except Exception as exc:
+        import traceback
+        print(traceback.format_exc())
+        return respond(500, {"detail": "FARMER_API_ERROR", "reason": str(exc)})
+
+
+def _market_nearby(farmer: dict[str, Any], event: dict[str, Any]):
+    params = event.get("queryStringParameters") or {}
+    try:
+        lat = float(params.get("lat") or params.get("latitude"))
+        lng = float(params.get("lng") or params.get("longitude"))
+    except (TypeError, ValueError):
+        farms = items(farmer["msid"], "FARM#")
+        farm = next((item for item in farms if item.get("latitude") is not None), None)
+        if not farm:
+            return respond(200, {
+                "status": "unavailable",
+                "sourceLabel": "Ministry of Agriculture (KAMIS)",
+                "disclaimer": "Mark a farm place first. Market distance is from the farm, not the phone.",
+                "nearby": [],
+                "bestNearby": None,
+            })
+        lat = float(farm["latitude"])
+        lng = float(farm["longitude"])
+    commodity = params.get("commodity")
+    try:
+        radius = float(params.get("radiusKm") or 80)
+    except ValueError:
+        radius = 80
+    payload = nearby_intelligence(
+        lat,
+        lng,
+        commodity,
+        radius,
+        cache_get=read_market_cache,
+        cache_put=write_market_cache,
+    )
+    payload["msid"] = farmer["msid"]
+    return respond(200, payload)
+
+
+def read_market_cache():
+    try:
+        result = table.get_item(Key={"pk": "SYSTEM#MARKET", "sk": "KAMIS#SNAPSHOT"})
+    except Exception:
+        return None
+    item = unwrap(result["Item"]) if result.get("Item") else None
+    if not item:
+        return None
+    return {"rows": item.get("rows") or [], "at": item.get("at") or 0}
+
+
+def write_market_cache(snapshot: dict[str, Any]):
+    try:
+        table.put_item(Item=to_item({
+            "pk": "SYSTEM#MARKET",
+            "sk": "KAMIS#SNAPSHOT",
+            "rows": snapshot.get("rows") or [],
+            "at": snapshot.get("at") or 0,
+            "ingestedAt": snapshot.get("ingestedAt"),
+            "source": "KAMIS",
+        }))
+    except Exception:
+        return
 
 
 def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
@@ -562,15 +637,17 @@ def to_item(data: dict[str, Any]) -> dict[str, Any]:
 
 def unwrap(item: dict[str, Any]) -> dict[str, Any]:
     skip = {"pk", "sk", "ttl"}
-    clean: dict[str, Any] = {}
-    for key, value in item.items():
-        if key in skip:
-            continue
-        if isinstance(value, Decimal):
-            clean[key] = int(value) if value % 1 == 0 else float(value)
-        else:
-            clean[key] = value
-    return clean
+    return {key: coerce(value) for key, value in item.items() if key not in skip}
+
+
+def coerce(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return int(value) if value % 1 == 0 else float(value)
+    if isinstance(value, list):
+        return [coerce(item) for item in value]
+    if isinstance(value, dict):
+        return {key: coerce(item) for key, item in value.items()}
+    return value
 
 
 def utcnow() -> str:
@@ -581,8 +658,14 @@ def respond(status: int, payload: dict[str, Any] | list[Any]):
     return {
         "statusCode": status,
         "headers": {**CORS, "content-type": "application/json"},
-        "body": json.dumps(payload),
+        "body": json.dumps(payload, default=_json_default),
     }
+
+
+def _json_default(value: Any):
+    if isinstance(value, Decimal):
+        return int(value) if value % 1 == 0 else float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 
 class AuthError(Exception):

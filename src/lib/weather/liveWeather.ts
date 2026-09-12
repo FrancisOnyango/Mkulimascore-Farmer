@@ -66,16 +66,20 @@ export async function fetchLiveWeather(farm: Farm): Promise<FarmWeather | null> 
     condition,
     windLabel: `${Math.round(payload.current?.wind_speed_10m ?? daily.wind_speed_10m_max?.[0] ?? 0)} km/h`,
     forecast,
-    fieldActivityNote: buildActivityNote(rainProbabilityPct, condition),
+    fieldActivityNote: buildActivityNote(rainProbabilityPct, rainMm, condition),
     enterpriseNotes: [],
     updatedAt: new Date().toISOString()
   };
 }
 
-function buildActivityNote(rainProbabilityPct: number, condition: string) {
-  if (rainProbabilityPct >= 70) return `Rain is likely today. Consider completing time-sensitive field work before the wet period.`;
-  if (rainProbabilityPct >= 40) return `There is a chance of rain today. Keep field work flexible and monitor conditions.`;
-  return `${condition} conditions are expected today. Confirm field conditions before applying inputs.`;
+function buildActivityNote(rainProbabilityPct: number, rainMm: number, condition: string) {
+  if (rainProbabilityPct >= 70) {
+    return rainMm >= 1
+      ? `Rain likely around your farm. About ${rainMm} mm already recorded.`
+      : 'Rain likely around your farm later today.';
+  }
+  if (rainProbabilityPct >= 40) return 'Some rain is possible around your farm today.';
+  return `${condition} around your farm. This is the farm place, not the phone.`;
 }
 
 function describeWeatherCode(code: number) {

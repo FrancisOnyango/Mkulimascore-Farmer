@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mkulima",
     "slug": "mkulima-farmer",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "mkulima",
@@ -31,7 +31,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mkulima uses your location only when you choose to mark or walk your farm."
+        }
+      ]
     ],
     "extra": {
       "appRole": "farmer"

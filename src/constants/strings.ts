@@ -9,7 +9,7 @@ export const strings = {
     home: 'Home',
     farm: 'My Farm',
     activity: 'Activity',
-    insights: 'Today',
+    insights: 'Insights',
     profile: 'Profile'
   },
   welcome: {

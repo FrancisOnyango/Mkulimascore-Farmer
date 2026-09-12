@@ -1,10 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { Input } from '@/components/Input';
+import { PrimaryButton } from '@/components/PrimaryButton';
+import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
+import { linkedMarkets } from '@/lib/markets/linkage';
+import { marketOpportunities, priceHonesty } from '@/lib/markets/opportunity';
+import type { FarmerMarketNote } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { freshnessLabel, getFreshness } from '@/lib/utils/format';
@@ -22,7 +28,16 @@ const labels: Record<string, string> = {
 
 export default function InsightCategory() {
   const { kind } = useLocalSearchParams<{ kind: string }>();
-  const { insights, weather, climate, markets, enterprises } = useAppData();
+  const { insights, weather, climate, markets, enterprises, farms, selectedFarmId, refresh } = useAppData();
+  const selectedFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
+  const [notes, setNotes] = useState<FarmerMarketNote[]>([]);
+  const [priceKes, setPriceKes] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
+  useEffect(() => {
+    void FarmerAppService.listFarmerMarketNotes().then(setNotes);
+  }, [kind]);
+  const linkage = linkedMarkets({ farm: selectedFarm, enterprises, liveMarkets: markets, farmerNotes: notes });
+  const opportunities = marketOpportunities({ farm: selectedFarm, enterprises, liveMarkets: markets, farmerNotes: notes, limit: 3 });
   const selectedKind = kind ?? '';
   const selected = useMemo(() => {
     if (selectedKind === 'climate') return insights.filter((item) => item.kind === 'geo');
@@ -31,6 +46,7 @@ export default function InsightCategory() {
   }, [insights, selectedKind]);
   const relevantMarkets = markets.filter((item) => item.dataStatus !== 'unavailable' && enterprises.some((enterprise) => enterprise.id === item.enterpriseId || enterprise.sector === item.commodity || enterprise.name === item.enterpriseName));
   const shownMarkets = relevantMarkets.length ? relevantMarkets : markets.filter((item) => item.dataStatus !== 'unavailable');
+  const farmWeather = selectedFarm ? weather.filter((item) => item.farmId === selectedFarm.id) : weather;
 
   return (
     <AppShell>
@@ -39,7 +55,7 @@ export default function InsightCategory() {
 
       {selectedKind === 'weather' ? (
         <View style={{ gap: spacing.md }}>
-          {weather.length ? weather.map((item) => (
+          {farmWeather.length ? farmWeather.map((item) => (
             <Card key={item.id}>
               <Caption>{item.farmName} · {item.location}</Caption>
               <H3 style={{ marginTop: spacing.xs }}>{item.condition}</H3>
@@ -59,7 +75,7 @@ export default function InsightCategory() {
               <Body style={{ marginTop: spacing.lg }}>{item.fieldActivityNote}</Body>
               <Caption style={{ marginTop: spacing.md }}>{freshnessLabel(item.updatedAt)}</Caption>
             </Card>
-          )) : <EmptyState title="Weather is not available yet" body="Add a farm location, then refresh when you have a connection." />}
+          )) : <EmptyState title="Weather is not available yet" body="Mark a farm place, then refresh when you have a connection." action="Farm place" onAction={() => router.push(selectedFarm ? `/farm/map?farmId=${selectedFarm.id}` : '/(tabs)/farm')} />}
         </View>
       ) : null}
 
@@ -78,6 +94,65 @@ export default function InsightCategory() {
 
       {selectedKind === 'markets' ? (
         <View style={{ gap: spacing.md }}>
+          {opportunities.length ? opportunities.map((market, index) => (
+            <Card key={market.id}>
+              <Caption>Option {index + 1} · from your farm place</Caption>
+              <H3 style={{ marginTop: spacing.xs }}>{market.name}</H3>
+              <Body style={{ marginTop: spacing.sm }}>{market.distanceLabel} · {market.town}</Body>
+              <Body style={{ marginTop: spacing.sm }}>{market.priceLabel ?? 'No reported price yet'}</Body>
+              <Caption style={{ marginTop: spacing.sm }}>{market.freshnessLabel}</Caption>
+            </Card>
+          )) : (
+            <EmptyState title="Mark a farm place first" body="Nearest markets appear when the farm has a point or shape." action="Farm place" onAction={() => router.push(selectedFarm ? `/farm/map?farmId=${selectedFarm.id}` : '/(tabs)/farm')} />
+          )}
+          {selectedFarm && opportunities.length ? (
+            <PrimaryButton label="Compare on map" variant="secondary" onPress={() => router.push({ pathname: '/farm/compare', params: { farmId: selectedFarm.id } })} />
+          ) : null}
+          {selectedFarm && linkage.nearest[0] ? (
+            <Card>
+              <H3>What did you get today?</H3>
+              <Body style={{ marginTop: spacing.sm }}>Your price helps other farmers nearby. Added by you — not a live market feed.</Body>
+              <View style={{ marginTop: spacing.lg }}>
+                <Input
+                  label={`Price at ${linkage.nearest[0].name}`}
+                  value={priceKes}
+                  onChangeText={setPriceKes}
+                  keyboardType="decimal-pad"
+                  placeholder="KES"
+                />
+                <PrimaryButton
+                  label={savingPrice ? 'Saving...' : `Save ${enterprises[0]?.sector ?? 'crop'} price`}
+                  disabled={savingPrice || !priceKes.trim()}
+                  onPress={() => {
+                    void (async () => {
+                      setSavingPrice(true);
+                      try {
+                        const nearest = linkage.nearest[0];
+                        if (!nearest) return;
+                        await FarmerAppService.saveFarmerMarketNote({
+                          farmId: selectedFarm.id,
+                          marketId: nearest.id,
+                          marketName: nearest.name,
+                          commodity: enterprises[0]?.sector ?? 'Produce',
+                          priceKes: priceKes.trim()
+                        });
+                        setPriceKes('');
+                        setNotes(await FarmerAppService.listFarmerMarketNotes());
+                        await refresh();
+                      } finally {
+                        setSavingPrice(false);
+                      }
+                    })();
+                  }}
+                />
+              </View>
+              {linkage.notes.map((note) => (
+                <Caption key={note.id} style={{ marginTop: spacing.sm }}>
+                  You noted {note.commodity} at {note.priceKes} KES / {note.unit} · {note.marketName}
+                </Caption>
+              ))}
+            </Card>
+          ) : null}
           {shownMarkets.length ? shownMarkets.map((item) => {
             const stale = getFreshness(item.updatedAt)?.state === 'stale';
             return (
@@ -88,11 +163,11 @@ export default function InsightCategory() {
                 {item.farmerRecordedPrice ? <Caption style={{ marginTop: spacing.sm }}>Your last recorded price: {item.farmerRecordedPrice}</Caption> : null}
                 <Caption style={{ marginTop: spacing.md }}>
                   {stale ? 'This saved price may be old. ' : ''}
-                  {item.sourceLabel ?? 'Source not given'} · {freshnessLabel(item.updatedAt)}
+                  {priceHonesty(item.dataStatus, item.updatedAt)} · {item.sourceLabel ?? 'Ministry of Agriculture (KAMIS)'} · {freshnessLabel(item.updatedAt)}
                 </Caption>
               </Card>
             );
-          }) : <EmptyState title="Market price unavailable" body="We only show prices when a source exists for your enterprises." />}
+          }) : linkage.nearest.length ? null : <EmptyState title="Market price unavailable" body="We only show prices when a source exists for your enterprises." />}
         </View>
       ) : null}
 
@@ -116,8 +191,8 @@ export default function InsightCategory() {
 }
 
 function leadFor(kind: string) {
-  if (kind === 'weather') return 'Location-based conditions for your farm. Forecasts can change.';
-  if (kind === 'markets') return 'Prices are shown only with a source and a date. A missing price is better than a guessed one.';
+  if (kind === 'weather') return 'Forecast for the farm place — not the phone. Forecasts can change.';
+  if (kind === 'markets') return 'Nearby options from the farm place. We never invent a price. Stale is labelled as latest reported.';
   if (kind === 'financial') return 'This is not a loan offer. It only describes how complete your farm information is.';
   if (kind === 'climate') return 'Seasonal context when a reliable location source exists.';
   return 'Information tied to your farm and records.';

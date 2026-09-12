@@ -27,6 +27,8 @@ export type OnboardingStep =
   | 'done';
 export type SessionKind = 'demo' | 'self_onboarded' | 'returning';
 export type FarmTenure = 'owned' | 'family' | 'leased' | 'other';
+export type FieldLook = 'planted' | 'mixed' | 'bare';
+export type FarmPlaceKind = 'point' | 'polygon';
 
 export interface OnboardingDraft {
   intent: 'new' | 'returning';
@@ -93,6 +95,21 @@ export interface Farm {
   boundary?: { latitude: number; longitude: number }[];
   boundaryCapturedAt?: string | null;
   boundarySource?: 'GPS_WALK' | 'DRAWN' | 'IMPORT' | 'DEMO';
+  fieldLook?: FieldLook;
+  fieldLookAt?: string | null;
+  lastAccuracyM?: number | null;
+}
+
+export interface FarmerMarketNote {
+  id: string;
+  farmId: string;
+  marketId: string;
+  marketName: string;
+  commodity: string;
+  priceKes: string;
+  unit: string;
+  notedAt: string;
+  source: 'FARMER_APP';
 }
 
 export interface Enterprise {
@@ -207,7 +224,7 @@ export interface MarketSignal {
   fetchedAt?: string;
 }
 
-export type MarketDataStatus = 'live' | 'delayed' | 'cached' | 'unavailable';
+export type MarketDataStatus = 'live' | 'reported' | 'delayed' | 'cached' | 'unavailable';
 
 export interface PersonalizedAlert {
   id: string;
@@ -285,6 +302,7 @@ export interface AskMkulimaContext {
   climate: ClimateSignal[];
   markets: MarketSignal[];
   alerts: PersonalizedAlert[];
+  activity?: ActivityItem[];
 }
 
 export interface InstitutionRequest {

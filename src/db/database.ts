@@ -9,9 +9,12 @@ import type {
   CorrectionSubmission,
   Enterprise,
   EvidenceRecord,
+  FarmerMarketNote,
   FarmerNotification,
+  FieldLook,
   FinancingFacility,
   Farm,
+  FarmPlaceKind,
   FarmWeather,
   Insight,
   InstitutionRequest,
@@ -28,6 +31,7 @@ import type {
   ProductionSubmission
 } from '@/domain/types';
 import { FARMER_CONSENT_VERSION } from '@/domain/types';
+import { centroid, GPS_AREA_ACCURACY_M, polygonAcres } from '@/lib/geo/geo';
 import { maskPhone } from '@/lib/phone/kenya';
 import { summarizeEnterprise } from '@/lib/onboarding/enterprises';
 import type { FarmerProjection } from '@/lib/api/projection';
@@ -1358,7 +1362,7 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
         reportedArea: Number.isFinite(area) && area > 0 ? area : 0,
         measuredArea: null,
         areaUnit: 'acres',
-        mapped: Boolean(draft.latitude && draft.longitude),
+        mapped: false,
         verification: 'reported',
         enterprises: draft.sectors ?? [],
         boundary: undefined,
@@ -1538,4 +1542,153 @@ export async function applyFarmerProjection(projection: FarmerProjection) {
 export async function getLastProjectionAt() {
   await initDb();
   return getMeta('last_projection_at');
+}
+
+export async function saveFarmPlace(input: {
+  farmId: string;
+  kind: FarmPlaceKind;
+  latitude: number;
+  longitude: number;
+  boundary?: { latitude: number; longitude: number }[];
+  boundarySource?: 'GPS_WALK' | 'DRAWN';
+  accuracyM?: number | null;
+}) {
+  await initDb();
+  const farm = await getFarm(input.farmId);
+  if (!farm) throw new Error('Farm not found');
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const points = input.boundary ?? [];
+  const mapped = input.kind === 'polygon' && points.length >= 3;
+  const accuracyOk = input.accuracyM == null || input.accuracyM <= GPS_AREA_ACCURACY_M;
+  const measured = mapped && accuracyOk ? polygonAcres(points) : null;
+  const center = mapped ? centroid(points) ?? { latitude: input.latitude, longitude: input.longitude } : { latitude: input.latitude, longitude: input.longitude };
+  const next: Farm = {
+    ...farm,
+    latitude: center.latitude,
+    longitude: center.longitude,
+    mapped: mapped || (farm.mapped && input.kind === 'point'),
+    measuredArea: mapped ? measured : farm.measuredArea,
+    boundary: mapped ? points : farm.boundary,
+    boundaryCapturedAt: mapped ? now : farm.boundaryCapturedAt,
+    boundarySource: mapped ? (input.boundarySource ?? 'DRAWN') : farm.boundarySource,
+    verification: 'reported',
+    lastAccuracyM: input.accuracyM ?? farm.lastAccuracyM ?? null
+  };
+  await db.withTransactionAsync(async () => {
+    await upsertJson(db, 'farms', next.id, next);
+    await enqueueOutbox(db, 'FARM_UPDATED', { ...next, source: 'FARMER_APP', provenance: 'FARMER_REPORTED' });
+    await addActivity(
+      db,
+      'farm',
+      mapped ? 'Farm shape saved' : 'Farm place saved',
+      mapped
+        ? `${measured != null ? `${measured} acres measured` : 'Shape saved · GPS too wide to measure acres'} · Added by you`
+        : `${center.latitude.toFixed(5)}, ${center.longitude.toFixed(5)} · Added by you`,
+      now
+    );
+  });
+  return next;
+}
+
+export async function saveFieldLook(farmId: string, fieldLook: FieldLook) {
+  await initDb();
+  const farm = await getFarm(farmId);
+  if (!farm) throw new Error('Farm not found');
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const next: Farm = { ...farm, fieldLook, fieldLookAt: now };
+  await db.withTransactionAsync(async () => {
+    await upsertJson(db, 'farms', next.id, next);
+    await enqueueOutbox(db, 'FARMER_FIELD_LOOK', {
+      farmId,
+      fieldLook,
+      notedAt: now,
+      source: 'FARMER_APP',
+      provenance: 'FARMER_REPORTED'
+    });
+    await addActivity(db, 'farm', 'Field look saved', fieldLookLabel(fieldLook), now);
+  });
+  return next;
+}
+
+export async function saveFarmerMarketNote(input: {
+  farmId: string;
+  marketId: string;
+  marketName: string;
+  commodity: string;
+  priceKes: string;
+  unit?: string;
+}) {
+  await initDb();
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const note: FarmerMarketNote = {
+    id: Crypto.randomUUID(),
+    farmId: input.farmId,
+    marketId: input.marketId,
+    marketName: input.marketName,
+    commodity: input.commodity,
+    priceKes: input.priceKes,
+    unit: input.unit || 'kg',
+    notedAt: now,
+    source: 'FARMER_APP'
+  };
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO farmer_submissions (id, submission_type, entity_id, data, sync_state, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      note.id,
+      'market_price',
+      input.farmId,
+      JSON.stringify(note),
+      'PENDING',
+      now
+    );
+    await enqueueOutbox(db, 'FARMER_MARKET_PRICE', { ...note, provenance: 'FARMER_REPORTED' });
+    await addActivity(db, 'sale', 'Market price noted', `${note.commodity} ${note.priceKes} KES at ${note.marketName}`, now);
+  });
+  return note;
+}
+
+export async function listFarmerMarketNotes() {
+  await initDb();
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ data: string }>(
+    "SELECT data FROM farmer_submissions WHERE submission_type = 'market_price' ORDER BY created_at DESC"
+  );
+  return rows.map((row) => JSON.parse(row.data) as FarmerMarketNote);
+}
+
+function fieldLookLabel(look: FieldLook) {
+  if (look === 'planted') return 'Looks planted now';
+  if (look === 'mixed') return 'Some planted, some open';
+  return 'Looks bare now';
+}
+
+export async function requestBoundaryVerification(farmId: string) {
+  await initDb();
+  const farm = await getFarm(farmId);
+  if (!farm) throw new Error('Farm not found');
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const request: InstitutionRequest = {
+    id: Crypto.randomUUID(),
+    institution: 'Farm visit',
+    title: 'Ask for a farm visit',
+    reason: `Confirm the boundary for ${farm.name}. Kept as added by you until a visit.`,
+    dueDate: null,
+    status: 'open',
+    items: ['Farm place', 'Boundary']
+  };
+  await db.withTransactionAsync(async () => {
+    await upsertJson(db, 'requests', request.id, request);
+    await enqueueOutbox(db, 'FARMER_VERIFICATION_REQUESTED', {
+      farmId,
+      requestId: request.id,
+      source: 'FARMER_APP',
+      provenance: 'FARMER_REPORTED'
+    });
+    await addActivity(db, 'farm', 'Farm visit requested', farm.name, now);
+  });
+  return request;
 }

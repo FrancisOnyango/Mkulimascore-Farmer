@@ -166,7 +166,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           }
         }));
       }
-      const marketResult = allowLiveFetch ? await fetchLiveMarketData() : { status: 'cached' as const, sourceLabel: 'Saved market reference', markets: [] };
+      const enterpriseSnapshot = await listEnterprises();
+      const locatedFarm = farmSnapshot.find((farm) => farm.latitude != null && farm.longitude != null);
+      const marketResult = allowLiveFetch
+        ? await fetchLiveMarketData({
+          latitude: locatedFarm?.latitude,
+          longitude: locatedFarm?.longitude,
+          commodity: enterpriseSnapshot[0]?.sector
+        })
+        : { status: 'cached' as const, sourceLabel: 'Saved market reference', markets: [] };
       await Promise.all(marketResult.markets.map((market) => saveMarket(market)));
       const [passport, farms, enterprises, insights, records, requests, consents, financing, notifications, weather, climate, markets, alerts, settings, activity, outbox, askMessages] = await Promise.all([
         getPassport(),
@@ -243,7 +251,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       weather: data.weather,
       climate: data.climate,
       markets: data.markets,
-      alerts: data.alerts
+      alerts: data.alerts,
+      activity: data.activity
     };
     try {
       const reply = await createAskMkulimaClient().ask(trimmed, { ...snapshot, language: data.settings.language }, [...data.askMessages, farmerMessage]);
@@ -254,7 +263,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       await deleteAskMkulimaMessage(farmerMessage.id);
       throw error;
     }
-  }, [data.alerts, data.askMessages, data.climate, data.consents, data.enterprises, data.farms, data.financing, data.insights, data.markets, data.outbox, data.passport, data.records, data.requests, data.settings.language, data.weather, refresh, selectedFarmId]);
+  }, [data.activity, data.alerts, data.askMessages, data.climate, data.consents, data.enterprises, data.farms, data.financing, data.insights, data.markets, data.outbox, data.passport, data.records, data.requests, data.settings.language, data.weather, refresh, selectedFarmId]);
 
   const deleteAskMessage = useCallback(async (id: string) => {
     await deleteAskMkulimaMessage(id);

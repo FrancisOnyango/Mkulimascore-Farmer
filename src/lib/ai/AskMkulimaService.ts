@@ -104,6 +104,62 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     return noData('alerts', 'No farm alert is saved on this phone right now.', ['Refresh when you have a signal so weather or record alerts can appear.', 'Add recent production or cost records so the app has something to watch.'], ['What should I update first?'], 'Farm alerts');
   }
 
+  if (hasAny(question, ['what did i sell', 'sold last', 'sales last', 'last month sale', 'niliuza', 'mauzo yangu'])) {
+    const sales = (context.activity ?? []).filter((item) => item.type === 'sale' || /sale|sold/i.test(item.title));
+    const monthAgo = Date.now() - 31 * 86_400_000;
+    const recent = sales.filter((item) => {
+      const at = new Date(item.occurredAt).getTime();
+      return Number.isFinite(at) && at >= monthAgo;
+    });
+    const latestSale = recent[0];
+    if (latestSale) {
+      sources.push(source('Farm diary on this phone', latestSale.occurredAt, 'These are farmer-saved sales, not independently verified unless marked verified.'));
+      return {
+        intent: 'production',
+        answer: `In the last month you saved ${recent.length} sale${recent.length === 1 ? '' : 's'}: ${recent.slice(0, 4).map((item) => item.detail || item.title).join('; ')}.`,
+        recommendations: ['Open Activity if you need to add a missing sale.', 'Treat this as your own record, not a buyer statement.'],
+        followUps: ['Which market near me has the latest price?', 'What should I update first?'],
+        sources
+      };
+    }
+    return noData('production', 'No sale is saved on this phone for the last month.', ['Add a sale from Activity when you are paid.', 'The assistant will not invent a sales total.'], ['How do I record a sale?'], 'Farm diary');
+  }
+
+  if (hasAny(question, ['last milk', 'last herd', 'when did i last', 'last update', 'nilisasisha', 'maziwa ya mwisho'])) {
+    const hit = (context.activity ?? []).find((item) => /milk|herd|production|flock/i.test(`${item.type} ${item.title} ${item.detail}`));
+    if (hit) {
+      sources.push(source('Farm diary on this phone', hit.occurredAt, 'A diary entry is farmer-reported until a partner confirms it.'));
+      return {
+        intent: 'production',
+        answer: `The last update I can see is “${hit.title}” (${hit.detail}) on ${hit.occurredAt.slice(0, 10)}.`,
+        recommendations: ['Add today’s milk or herd change if that date is not today.', 'Keep one short note per day rather than reconstructing later.'],
+        followUps: ['What should I update first?', 'Why is my profile incomplete?'],
+        sources
+      };
+    }
+    return noData('production', 'No milk or herd update is saved on this phone yet.', ['Record today’s milk or herd from Activity.', 'The assistant will not guess a last date.'], ["How do I record today's production?"], 'Farm diary');
+  }
+
+  if (hasAny(question, ['profile incomplete', 'why is my profile', 'missing from my', 'haujakamilika'])) {
+    const gaps = [
+      !context.farms[0]?.latitude ? 'mark the farm place' : null,
+      context.farms[0] && !context.farms[0].mapped ? 'complete the farm boundary' : null,
+      !context.enterprises.length ? 'add what you grow or keep' : null,
+      !context.records.length ? 'add a recent production record' : null,
+      !context.consents.length && !context.passport?.affiliations.length ? 'connect your cooperative' : null
+    ].filter(Boolean);
+    sources.push(source('Mkulima Passport on this phone', context.passport?.lastUpdated ?? '', 'This is a completeness view, not a score or loan decision.'));
+    return {
+      intent: 'next_actions',
+      answer: gaps.length
+        ? `Your profile is incomplete because you still need to ${gaps.join(', then ')}. None of these promise a score change.`
+        : 'The main farm facts are in place. Keep production current so the record stays useful.',
+      recommendations: gaps.length ? [`Start with: ${gaps[0]}.`, 'Do not expect points or a loan from completing a task.'] : ['Keep the latest milk, harvest or sale current.', 'Review permissions before sharing the Passport.'],
+      followUps: ['What should I update first?', 'How do I map my farm?'],
+      sources
+    };
+  }
+
   if (hasAny(question, ['market', 'price', 'sell', 'buyer', 'selling', 'bei', 'soko', 'mnunuzi', 'kuuza'])) {
     if (market) {
       sources.push(source('Market reference in this app', market.updatedAt, 'A reference price is not a guaranteed offer and may not match your buyer or grade.'));

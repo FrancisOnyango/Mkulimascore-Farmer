@@ -1,5 +1,6 @@
 infra/farmer-api/env.json
 infra/farmer-api/handler.zip
+infra/farmer-api/kamis-snapshot-item.json
 node_modules/
 .expo/
 dist/

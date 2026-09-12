@@ -112,9 +112,9 @@ export function buildHomeModules({
   } else if (farm && !farm.latitude) {
     modules.push({
       id: 'map',
-      title: 'Add farm place',
-      detail: 'A village name is enough.',
-      route: `/(tabs)/farm`
+      title: 'Mark farm place',
+      detail: 'Unlocks weather and the nearest market.',
+      route: `/farm/map?farmId=${farm.id}`
     });
   }
 
