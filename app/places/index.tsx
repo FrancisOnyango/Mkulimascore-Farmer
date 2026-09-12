@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H1 } from '@/components/Typography';
+import { AskBar } from '@/components/AskBar';
 import { NearbyPlaces } from '@/components/NearbyPlaces';
 import { FarmPlaceMap } from '@/components/FarmPlaceMap';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -53,6 +54,12 @@ export default function NearbyPlacesScreen() {
       <Body style={styles.lead}>
         Ranked for {farmEnterprises[0]?.sector ? `your ${farmEnterprises[0].sector.toLowerCase()}` : 'this farm'} — not only the nearest pin.
       </Body>
+      <View style={{ marginTop: spacing.lg }}>
+        <AskBar
+          hint="Where can I sell or buy near this farm?"
+          onPress={() => router.push({ pathname: '/ask', params: { screen: 'places', farmId: farm?.id ?? '' } })}
+        />
+      </View>
       {!farm || !origin ? (
         <Caption style={{ marginTop: spacing.lg }}>Mark the farm place first. Nearby is from the farm, not the phone.</Caption>
       ) : (

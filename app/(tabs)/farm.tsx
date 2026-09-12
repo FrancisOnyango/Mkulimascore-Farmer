@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { StatusPill } from '@/components/StatusPill';
 import { SectionHeader } from '@/components/SectionHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { AskBar } from '@/components/AskBar';
 import { NearbyPlaces } from '@/components/NearbyPlaces';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmPlaceMap } from '@/components/FarmPlaceMap';
@@ -68,6 +69,12 @@ export default function Farms() {
         <Pressable accessibilityRole="button" accessibilityLabel="Add a farm update" onPress={() => router.push({ pathname: '/add', params: { context: 'farm', farmId: primaryFarm?.id } })} style={styles.addButton}>
           <Text style={styles.addText}>+</Text>
         </Pressable>
+      </View>
+      <View style={{ marginTop: spacing.lg }}>
+        <AskBar
+          hint="How large is this farm? What is nearby?"
+          onPress={() => router.push({ pathname: '/ask', params: { screen: 'farm', farmId: primaryFarm?.id ?? '' } })}
+        />
       </View>
 
       <View style={styles.switcher}>

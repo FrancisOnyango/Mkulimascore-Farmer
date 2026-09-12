@@ -303,6 +303,7 @@ export type AskMkulimaIntent =
   | 'alerts'
   | 'chat'
   | 'places'
+  | 'draft'
   | 'general';
 
 export interface AskMkulimaSource {
@@ -323,11 +324,14 @@ export interface AskMkulimaMessageMetadata {
   model?: string;
   provider?: string;
   latencyMs?: number;
+  risk?: import('@/domain/ask').AskRisk;
+  draft?: import('@/domain/ask').AskDraft;
 }
 
 export interface AskMkulimaContext {
   language?: AppSettings['language'];
   selectedFarmId?: string | null;
+  screenContext?: import('@/domain/ask').AskScreenContext;
   passport: Passport | null;
   farms: Farm[];
   enterprises: Enterprise[];

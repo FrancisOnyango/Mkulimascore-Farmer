@@ -60,7 +60,7 @@ export async function fetchLiveMarketData(origin?: {
   if (origin?.commodity) params.set('commodity', origin.commodity);
   const requestId = `market-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  const timer = setTimeout(() => controller.abort(), 25_000);
   try {
     const query = params.toString();
     const response = await fetch(`${baseUrl}/api/v1/farmer/market-intelligence/nearby${query ? `?${query}` : ''}`, {
@@ -78,9 +78,11 @@ export async function fetchLiveMarketData(origin?: {
       disclaimer?: string;
       ingestedAt?: string;
       nearby?: NearbyMarket[];
+      produce?: NearbyMarket[];
       bestNearby?: MarketServiceResult['bestNearby'];
     };
     const nearby = payload.nearby ?? [];
+    const produce = payload.produce?.length ? payload.produce : nearby;
     return {
       status: payload.status === 'reported' ? 'reported' : payload.status === 'cached' ? 'cached' : 'unavailable',
       sourceLabel: payload.sourceLabel ?? 'Ministry of Agriculture (KAMIS)',
@@ -88,7 +90,7 @@ export async function fetchLiveMarketData(origin?: {
       ingestedAt: payload.ingestedAt,
       nearby,
       bestNearby: payload.bestNearby,
-      markets: nearby.filter((item) => item.canonicalPrice != null).map(toSignal)
+      markets: produce.filter((item) => item.canonicalPrice != null).map(toSignal)
     };
   } catch {
     return { status: 'unavailable', sourceLabel: 'Market intelligence unavailable', nearby: [], markets: [] };

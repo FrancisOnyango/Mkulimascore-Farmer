@@ -1,6 +1,13 @@
 ﻿import { getAccessToken } from '@/lib/auth/tokenStore';
 import { getAskMkulimaEndpoint } from '@/lib/ai/AskMkulimaIntegration';
+import { knowledgeLines, searchAgriKnowledge } from '@/lib/ai/agriKnowledge';
+import { detectAskDraft } from '@/lib/ai/askDraft';
+import { classifyAskRisk, highRiskAnswer } from '@/lib/ai/askPolicy';
+import { buildFarmerContextPacket } from '@/lib/ai/farmerContext';
+import { fieldConditionLine } from '@/lib/eo/farmerCopy';
+import { inferFarmCycle } from '@/lib/intelligence/cycle';
 import * as Crypto from 'expo-crypto';
+import type { AskDraft, AskRisk } from '@/domain/ask';
 import type {
   AskMkulimaContext,
   AskMkulimaIntent,
@@ -29,6 +36,8 @@ type IntentResult = {
   sources: AskMkulimaSource[];
   limitations?: string[];
   confidence?: AskMkulimaMessageMetadata['confidence'];
+  draft?: AskDraft;
+  risk?: AskRisk;
 };
 
 class DemoAskMkulimaClient implements AskMkulimaClient {
@@ -38,8 +47,17 @@ class DemoAskMkulimaClient implements AskMkulimaClient {
     if (mentionsRestrictedTopic(normalized)) {
       return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, scoped.language);
     }
+    const risk = classifyAskRisk(normalized);
+    if (risk === 'high') {
+      const blocked = highRiskAnswer(normalized);
+      return makeReply(blocked.answer, blocked.intent, blocked.recommendations, blocked.followUps, [], ['High-risk advice needs a registered label or a veterinary officer.'], 'high', scoped.language, { risk });
+    }
+    const draft = detectAskDraft(normalized, scoped);
+    if (draft) {
+      return makeReply(draft.prompt, 'draft', ['Nothing is saved until you confirm.'], ['How is my production?', 'What should I do first?'], [source('Conversation draft', '', 'Ask Mkulima may draft a record. It cannot save, update or delete farm evidence on its own.')], ['I will not change your farm book unless you confirm.'], 'high', scoped.language, { draft, risk });
+    }
     const result = routeQuestion(normalized, scoped);
-    return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, scoped.language);
+    return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, scoped.language, { risk: result.risk ?? risk, draft: result.draft });
   }
 }
 
@@ -55,6 +73,63 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   const primaryEnterprise = context.enterprises.find((enterprise) => enterprise.primary) ?? context.enterprises[0];
   const farmName = context.farms[0]?.name ?? 'Your farm';
   const talk = farmTalk(context);
+
+  if (hasAny(question, ['my score', 'improve my score', 'increase my score', 'gain points', 'readiness score', 'how can i improve'])) {
+    const gaps = profileGaps(context);
+    sources.push(source('Mkulima Passport on this phone', context.passport?.lastUpdated ?? '', 'This is a next action from missing facts, not a score or points.'));
+    return {
+      intent: 'next_actions',
+      answer: gaps.length
+        ? `Based on your records, the profile still needs you to ${gaps.join(', then ')}. I will not invent points or say a change will raise a score.`
+        : 'Based on your records, the main farm facts are in place. Keep production current. I will not invent a score improvement.',
+      recommendations: gaps.length ? [`Start with: ${gaps[0]}.`] : ['Keep the latest milk, harvest or sale current.'],
+      followUps: ['Why is my profile incomplete?', 'How do I map my farm?'],
+      sources,
+      risk: 'low'
+    };
+  }
+
+  if (hasAny(question, ['should i plant', 'plant tomorrow', 'plant today', 'nipande', 'kupanda kesho'])) {
+    const cycle = inferFarmCycle(context.enterprises, context.activity ?? []);
+    const weatherLine = weather
+      ? `${weather.condition.toLowerCase()} at ${talk.place}, about ${weather.rainProbabilityPct}% chance of rain.`
+      : 'I do not have a forecast for the farm place yet.';
+    if (weather) sources.push(source('Farm weather forecast', weather.updatedAt, 'A forecast can change. Check the field before you plant.'));
+    return {
+      intent: 'weather',
+      answer: layered(
+        primaryEnterprise
+          ? `${primaryEnterprise.name} is on this farm. ${cycle.line} You have not asked me to mark this season as planted.`
+          : `I do not yet have a crop enterprise for ${talk.farmLine}.`,
+        weatherLine,
+        'Confirm that the topsoil has received enough moisture rather than relying on the forecast alone. I will not tell you to plant from a chat answer.'
+      ),
+      recommendations: ['Look at the soil on the farm before you plant.'],
+      followUps: ['How is the weather for my farm?', 'How is my production?'],
+      sources,
+      risk: 'medium'
+    };
+  }
+
+  if (hasAny(question, ['how is my maize', 'how is my field', 'how is the crop', 'field looking', 'how is my crop'])) {
+    const field = fieldConditionLine(context.farms[0], context.climate);
+    if (climate) sources.push(source(climate.sourceLabel || 'Field note on this phone', climate.updatedAt, 'Satellite or season notes cannot name a cause. A photo can help later.'));
+    return {
+      intent: 'climate',
+      answer: layered(
+        primaryEnterprise ? `${primaryEnterprise.name} is recorded at ${primaryEnterprise.productionValue} ${primaryEnterprise.productionMetric}.` : 'No crop enterprise is saved yet.',
+        field ?? 'I do not have a field-condition note for this farm yet.',
+        'Satellite or a saved look cannot identify a pest or disease. If a patch looks weaker, photograph the whole plant and the underside of a leaf. I will not name a definite cause from this alone.'
+      ),
+      recommendations: ['Walk the weaker section before you add more inputs.'],
+      followUps: ['How is the weather for my farm?', 'Where can I get veterinary help near my farm?'],
+      sources,
+      risk: 'medium'
+    };
+  }
+
+  const knowledge = knowledgeAnswer(question, context, talk, sources);
+  if (knowledge) return knowledge;
 
   if (isGreeting(question) && !hasAny(question, ['weather', 'rain', 'price', 'bei', 'fertil', 'mbolea'])) {
     return {
@@ -99,7 +174,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         : '';
       return {
         intent: 'weather',
-        answer: `${weather.farmName}: ${weather.condition.toLowerCase()}, ${weather.temperatureLowC} to ${weather.temperatureHighC}C. ${rain} ${weather.fieldActivityNote}${days}`,
+        answer: `Based on the forecast for your farm place, not a guess from me: ${weather.farmName} looks ${weather.condition.toLowerCase()}, ${weather.temperatureLowC} to ${weather.temperatureHighC}C. ${rain} ${weather.fieldActivityNote}${days}`,
         recommendations: [
           weather.rainProbabilityPct >= 60
             ? 'Protect harvested produce and finish urgent field work before the rain.'
@@ -166,7 +241,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       sources.push(source('Farm diary on this phone', hit.occurredAt, 'A diary line is added by you until a partner confirms it.'));
       return {
         intent: 'production',
-        answer: `The last update I can see is “${hit.title}” on ${hit.occurredAt.slice(0, 10)}. ${hit.detail} Add today’s figure if that date is not today.`,
+        answer: `Based on the diary you added, the last update I can see is “${hit.title}” on ${hit.occurredAt.slice(0, 10)}. ${hit.detail} Added by you — not checked during a farm visit.`,
         recommendations: ['Record today’s milk or herd from Activity.'],
         followUps: ['What should I do first?', 'Why is my profile incomplete?'],
         sources
@@ -175,20 +250,14 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     return noData('production', 'No milk or herd update is saved yet. I will not guess the last date.', ['Record today’s milk or herd from Activity.'], ['How do I record today’s production?'], 'Farm diary');
   }
 
-  if (hasAny(question, ['profile incomplete', 'why is my profile', 'missing from my', 'haujakamilika'])) {
-    const gaps = [
-      !context.farms[0]?.latitude ? 'mark the farm place' : null,
-      context.farms[0] && !context.farms[0].mapped ? 'walk or draw the farm edge' : null,
-      !context.enterprises.length ? 'add what you grow or keep' : null,
-      !context.records.length ? 'add a recent production record' : null,
-      !context.consents.length && !context.passport?.affiliations.length ? 'connect your cooperative, if you have one' : null
-    ].filter(Boolean);
+  if (hasAny(question, ['profile incomplete', 'why is my profile', 'missing from my', 'haujakamilika', 'medium-low', 'why did i get this'])) {
+    const gaps = profileGaps(context);
     sources.push(source('Mkulima Passport on this phone', context.passport?.lastUpdated ?? '', 'This is about missing facts, not a score.'));
     return {
       intent: 'next_actions',
       answer: gaps.length
-        ? `Your profile still needs you to ${gaps.join(', then ')}. None of this promises a loan.`
-        : 'The main farm facts are in place. Keep production current so the record stays useful.',
+        ? `Based on your records, your profile still needs you to ${gaps.join(', then ')}. None of this promises a loan or changes a score.`
+        : 'Based on your records, the main farm facts are in place. Keep production current so the record stays useful.',
       recommendations: gaps.length ? [`Start with: ${gaps[0]}.`] : ['Keep the latest milk, harvest or sale current.'],
       followUps: ['What should I do first?', 'How do I map my farm?'],
       sources
@@ -204,7 +273,8 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     const savedRecord = context.records.find((record) => /fertil|mbolea|dap|urea|npk|seed|input|feed/i.test(`${record.category} ${record.title}`));
     const savedLine = savedActivity ? `${savedActivity.title} (${savedActivity.detail})` : savedRecord?.title;
     const savedAt = savedActivity?.occurredAt ?? savedRecord?.documentDate ?? '';
-    const nearbyCrops = context.markets.slice(0, 3).map((item) => `${item.commodity} ${item.observedPrice} at ${item.marketScope}`).join('; ');
+    const nearbyCrops = produceBoard(context.markets, 6).join('; ');
+    const fertilizerQuote = context.markets.find((item) => /fertil/i.test(item.commodity));
     const inputShop = (context.places ?? []).find((item) => item.category === 'inputs');
     if (savedLine) sources.push(source('Input cost on this phone', savedAt, 'This is what you saved, not an agrovet quote.'));
     if (context.markets[0]) sources.push(source('Latest reported market prices near the farm', context.markets[0].updatedAt, 'KAMIS reports crop and milk prices, not agrovet fertilizer bags.'));
@@ -213,27 +283,39 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       : ' I do not have a listed agrovet near this farm yet.';
     return {
       intent: 'markets',
-      answer: savedLine
-        ? `Near ${talk.place}, I do not have a Ministry fertilizer quote. I will not invent DAP or CAN. The last input you saved is ${savedLine}.${shopLine}${nearbyCrops ? ` Nearby reported produce: ${nearbyCrops}.` : ''} Confirm the bag price at the shop.`
-        : `Near ${talk.place}, KAMIS has nearby crop prices, not fertilizer bags. I will not invent a DAP, CAN or seed quote.${shopLine}${nearbyCrops ? ` What I can see: ${nearbyCrops}.` : ''} Add the agrovet you use if it is missing.`,
+      answer: fertilizerQuote
+        ? `Near ${talk.place}, a Ministry fertilizer report is ${fertilizerQuote.observedPrice} at ${fertilizerQuote.marketScope}. That is not a shop quote.${shopLine}${nearbyCrops ? ` Nearby produce: ${nearbyCrops}.` : ''} Confirm the bag at your agrovet.`
+        : savedLine
+          ? `Near ${talk.place}, I do not have a nearby Ministry fertilizer quote. I will not invent DAP or CAN. The last input you saved is ${savedLine}.${shopLine}${nearbyCrops ? ` Nearby reported produce: ${nearbyCrops}.` : ''} Confirm the bag price at the shop.`
+        : `Near ${talk.place}, I do not have a nearby Ministry fertilizer quote. I will not invent DAP or CAN.${shopLine}${nearbyCrops ? ` Nearby reported produce: ${nearbyCrops}.` : ''} Add the agrovet you use if it is missing.`,
       recommendations: [inputShop ? 'Confirm the bag price at that shop. A listed place is not a price quote.' : 'Add the agrovet you use, then save the receipt with amount and date.'],
       followUps: ['Where can I buy inputs near my farm?', 'What is the latest price near me?'],
       sources
     };
   }
 
-  if (hasAny(question, ['market', 'price', 'sell', 'buyer', 'selling', 'bei', 'soko', 'mnunuzi', 'kuuza'])) {
-    const wanted = context.markets.find((item) => question.includes(item.commodity.toLocaleLowerCase())) ?? market;
-    if (wanted) {
-      sources.push(source('Latest reported market price near the farm', wanted.updatedAt, 'A reported price is not what your buyer or agrovet must charge.'));
-      const own = wanted.farmerRecordedPrice ? ` Your last saved sale was ${wanted.farmerRecordedPrice}.` : '';
+  if (hasAny(question, ['market', 'price', 'sell', 'buyer', 'selling', 'bei', 'soko', 'mnunuzi', 'kuuza', 'tomato', 'nyanya', 'beans', 'maharagwe', 'potato', 'viazi', 'onion', 'kitunguu', 'kale', 'sukuma', 'cabbage', 'avocado', 'mango', 'banana', 'ndizi', 'rice', 'mchele'])) {
+    const named = context.markets.find((item) => question.includes(item.commodity.toLocaleLowerCase()));
+    const board = produceBoard(context.markets);
+    if (named || board.length) {
+      sources.push(source('Latest reported market prices near the farm', named?.updatedAt ?? context.markets[0]?.updatedAt ?? '', 'A reported price is not what your buyer or agrovet must charge.'));
+      const own = named?.farmerRecordedPrice ? ` Your last saved sale was ${named.farmerRecordedPrice}.` : '';
+      const focus = named
+        ? `${named.commodity} at ${named.marketScope} is ${named.observedPrice}. ${named.movementLabel}.`
+        : `Latest reported: ${board.join('; ')}.`;
       return {
         intent: 'markets',
-        answer: `Near ${talk.place}: ${wanted.commodity} at ${wanted.marketScope} is ${wanted.observedPrice}. ${wanted.movementLabel}. ${wanted.interpretation}${own} Confirm the final price at the market.`,
+        answer: layered(
+        primaryEnterprise ? `${primaryEnterprise.name} is on this farm.` : `I am using the farm place at ${talk.place}.`,
+        `Near ${talk.place}: ${focus} ${named?.interpretation ?? 'These are Ministry reported prices, not a live shop offer.'}${own}`,
+        hasAny(question, ['should i sell', 'where should i sell', 'which market'])
+          ? 'I do not have your transport cost, so I cannot say which option leaves more net income. Confirm the price at the market.'
+          : 'Confirm the final price at the market. A reported figure is not what your buyer must pay.'
+      ),
         recommendations: [
-          wanted.farmerRecordedPrice ? 'Compare this with your receipt, grade and quantity.' : 'Save your latest sale: price, quantity, buyer and date.'
+          named?.farmerRecordedPrice ? 'Compare this with your receipt, grade and quantity.' : 'Save your latest sale: price, quantity, buyer and date.'
         ],
-        followUps: ['What fertilizer cost have I saved?', 'How is my production?'],
+        followUps: board.length > 1 ? ['What is the tomato price?', 'What fertilizer cost have I saved?'] : ['What fertilizer cost have I saved?', 'How is my production?'],
         sources
       };
     }
@@ -263,7 +345,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       const trend = primaryEnterprise.trendLabel ? ` ${primaryEnterprise.trendLabel}.` : '';
       return {
         intent: 'production',
-        answer: `${primaryEnterprise.name} is recorded at ${primaryEnterprise.productionValue} ${primaryEnterprise.productionMetric}.${trend} ${primaryEnterprise.summary} Add today’s figure if that date is old.`,
+        answer: `Based on the ${primaryEnterprise.name} information you added, it is recorded at ${primaryEnterprise.productionValue} ${primaryEnterprise.productionMetric}.${trend} ${primaryEnterprise.summary} Added by you — not checked during a farm visit.`,
         recommendations: ['Record the latest amount, unit and date.'],
         followUps: ['What have I spent?', 'How is the weather for my farm?'],
         sources
@@ -361,6 +443,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
 function isPlaceQuestion(question: string) {
   return hasAny(question, [
     'where can i sell',
+    'where should i sell',
     'where to sell',
     'where do i sell',
     'nearest market',
@@ -418,11 +501,72 @@ function placesAnswer(
     : 'These are listed places, not verified shops.';
   return {
     intent: 'places',
-    answer: `Near ${talk.farmLine}: ${lines}. ${honesty} Confirm before you travel.`,
+    answer: `Based on places listed near ${talk.farmLine}: ${lines}. ${honesty} Confirm before you travel. I will not invent a shop that is not listed.`,
     recommendations: ['Open the place for directions. Add a missing shop if you use one that is not listed.'],
     followUps: ['What is the latest price near me?', 'What fertilizer cost have I saved?'],
     sources
   };
+}
+
+function knowledgeAnswer(
+  question: string,
+  context: AskMkulimaContext,
+  talk: ReturnType<typeof farmTalk>,
+  sources: AskMkulimaSource[]
+): IntentResult | null {
+  if (!hasAny(question, [
+    'armyworm', 'blight', 'wilt', 'pest', 'disease', 'what is wrong',
+    'yellow leaves', 'spots', 'scout', 'extension', 'kalro', 'pcpb', 'cabi'
+  ])) return null;
+  const enterprise = context.enterprises.find((item) => item.primary) ?? context.enterprises[0];
+  const hits = searchAgriKnowledge(question, enterprise?.sector);
+  if (!hits.length) return null;
+  hits.forEach((hit) => {
+    sources.push(source(`${hit.sourceOrganisation} guidance`, '', `Tier ${hit.authorityTier}. Published guidance, not a farm visit. ${hit.sourceUrl}`));
+  });
+  return {
+    intent: 'general',
+    answer: layered(
+      enterprise ? `${enterprise.name} is recorded at ${enterprise.productionValue} ${enterprise.productionMetric}.` : `I am looking at ${talk.farmLine}.`,
+      talk.oneLiner,
+      knowledgeLines(hits).join(' ')
+    ),
+    recommendations: ['Use this with what you see on the farm. I will not name a spray or a dose.'],
+    followUps: ['How is the weather for my farm?', 'Where can I buy inputs near my farm?'],
+    sources,
+    risk: 'medium'
+  };
+}
+
+function profileGaps(context: AskMkulimaContext) {
+  return [
+    !context.farms[0]?.latitude ? 'mark the farm place' : null,
+    context.farms[0] && !context.farms[0].mapped ? 'walk or draw the farm edge' : null,
+    !context.enterprises.length ? 'add what you grow or keep' : null,
+    !context.records.length ? 'add a recent production record' : null,
+    !context.consents.length && !context.passport?.affiliations.length ? 'connect your cooperative, if you have one' : null
+  ].filter((item): item is string => Boolean(item));
+}
+
+function layered(records?: string, conditions?: string, suggestion?: string) {
+  return [
+    records ? `Based on your records: ${records}` : null,
+    conditions ? `Based on current conditions: ${conditions}` : null,
+    suggestion ? `My suggestion: ${suggestion}` : null
+  ].filter(Boolean).join(' ');
+}
+
+function produceBoard(markets: AskMkulimaContext['markets'], limit = 8) {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const item of markets) {
+    const key = item.commodity.toLocaleLowerCase();
+    if (seen.has(key) || !item.observedPrice) continue;
+    seen.add(key);
+    lines.push(`${item.commodity} ${item.observedPrice} at ${item.marketScope}`);
+    if (lines.length >= limit) break;
+  }
+  return lines;
 }
 
 function farmTalk(context: AskMkulimaContext) {
@@ -446,17 +590,24 @@ function farmTalk(context: AskMkulimaContext) {
   return { firstName, place, farmLine, oneLiner, sources };
 }
 
-function talkFacts(context: AskMkulimaContext) {
+function talkFacts(context: AskMkulimaContext, question = '') {
   const talk = farmTalk(context);
+  const packet = buildFarmerContextPacket(question, context);
   return {
     farmerName: talk.firstName,
     farm: talk.farmLine,
     place: talk.place,
     enterprises: context.enterprises.slice(0, 4).map((item) => `${item.name} ${item.productionValue} ${item.productionMetric}`),
     weather: context.weather[0] ? `${context.weather[0].condition}, ${context.weather[0].temperatureLowC}-${context.weather[0].temperatureHighC}C` : null,
-    nearbyPrices: context.markets.slice(0, 5).map((item) => `${item.commodity} ${item.observedPrice} at ${item.marketScope}`),
+    nearbyPrices: produceBoard(context.markets, 10),
     nearbyPlaces: (context.places ?? []).slice(0, 5).map((item) => `${item.name} ${item.distanceLabel} ${item.category} ${item.verificationLabel}${item.priceLabel ? ` ${item.priceLabel}` : ''}`),
-    inputPriceNote: 'KAMIS reports nearby crop and milk prices from the farm place. It does not report agrovet fertilizer bags. Do not invent DAP, CAN, urea or seed shop prices. Listed places are not verified shops unless verification says so.'
+    inputPriceNote: 'KAMIS reports nearby crop and milk prices from the farm place. It does not report agrovet fertilizer bags. Do not invent DAP, CAN, urea or seed shop prices. Listed places are not verified shops unless verification says so.',
+    toolsUsed: packet.toolsUsed,
+    provenance: packet.facts.map((item) => item.farmerLine),
+    risk: packet.risk,
+    layers: packet.layers,
+    knowledge: searchAgriKnowledge(question, context.enterprises[0]?.sector).map((item) => item.farmerLine),
+    rule: 'Farmer facts are SELF_REPORTED until verified. Weather and prices must come from tools, not model memory. Never silently save a record. Never invent a pesticide, dose, or score points.'
   };
 }
 
@@ -469,8 +620,8 @@ function noData(intent: AskMkulimaIntent, answer: string, recommendations: strin
   return { intent, answer, recommendations, followUps, sources: [{ label: sourceLabel, freshness: 'Nothing saved yet', limitation: 'I will not invent missing farm data.' }] };
 }
 
-function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], _language: 'en' | 'sw' = 'en'): AskMkulimaReply {
-  const next = recommendations[0];
+function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], _language: 'en' | 'sw' = 'en', extras?: { draft?: AskDraft; risk?: AskRisk }): AskMkulimaReply {
+  const next = extras?.draft ? undefined : recommendations[0];
   const text = weaveNext(answer, next);
   return {
     text,
@@ -484,7 +635,9 @@ function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: st
       confidence: confidence ?? (sources.length >= 2 ? 'high' : sources.length === 1 ? 'medium' : 'low'),
       provider: 'local-free',
       model: 'mkulima-local-reasoner-v3',
-      latencyMs: 0
+      latencyMs: 0,
+      risk: extras?.risk,
+      draft: extras?.draft
     }
   };
 }
@@ -568,7 +721,8 @@ function hasFreshTopic(question: string) {
     'passport', 'profile', 'wasifu',
     'sale', 'sold', 'niliuza',
     'fertil', 'mbolea', 'dap', 'urea', 'agrovet', 'mbegu',
-    'where can i sell', 'where to sell', 'where can i buy', 'nearest market', 'vet', 'cooperative', 'collection', 'places near'
+    'where can i sell', 'where to sell', 'where can i buy', 'nearest market', 'vet', 'cooperative', 'collection', 'places near',
+    'plant', 'looking', 'pesticide', 'spray', 'litre', 'lita', 'bags', 'gunia'
   ]);
 }
 
@@ -609,6 +763,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
       return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, context.language);
     }
     const draft = await this.fallback.ask(question, context, history);
+    if (draft.metadata.risk === 'high' || draft.metadata.draft || draft.metadata.intent === 'draft') return draft;
     const token = await getAccessToken();
     const endpoint = getAskMkulimaEndpoint(this.baseUrl);
     if (!token || !endpoint) return draft;
@@ -623,7 +778,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}`, 'X-Request-ID': requestId },
         body: JSON.stringify({
           question,
-          context: projectSafeContext(context),
+          context: projectSafeContext(context, question),
           history: history.slice(-8).map((item) => ({
             role: item.role === 'assistant' ? 'assistant' : 'farmer',
             text: item.text.slice(0, 320),
@@ -635,7 +790,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
             recommendations: draft.metadata.recommendations,
             followUps: draft.metadata.followUps,
             sources: draft.metadata.sources,
-            facts: talkFacts(context)
+            facts: talkFacts(context, question)
           },
           requestId,
           audit: { action: 'ask_mkulima', client: 'mkulima-farmer', schemaVersion: 'v1' }
@@ -667,32 +822,31 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
   }
 }
 
-function projectSafeContext(context: AskMkulimaContext) {
+function projectSafeContext(context: AskMkulimaContext, question = '') {
+  const packet = buildFarmerContextPacket(question, scopeContext(context));
   return {
-    passport: context.passport ? { readinessLabel: context.passport.readinessLabel, profileStatus: context.passport.profileStatus, recordFreshness: context.passport.recordFreshness, evidenceStatus: context.passport.evidenceStatus } : null,
-    farms: context.farms.map((farm) => ({ name: farm.name, location: farm.location, reportedArea: farm.reportedArea, measuredArea: farm.measuredArea, areaUnit: farm.areaUnit, mapped: farm.mapped, verification: farm.verification })),
-    enterprises: context.enterprises.map((enterprise) => ({ name: enterprise.name, sector: enterprise.sector, summary: enterprise.summary, productionMetric: enterprise.productionMetric, productionValue: enterprise.productionValue, trendPct: enterprise.trendPct })),
-    insights: context.insights.map((insight) => ({ kind: insight.kind, title: insight.title, value: insight.value, explanation: insight.explanation, sourceLabel: insight.sourceLabel, updatedAt: insight.updatedAt, observationPeriod: insight.observationPeriod, limitation: insight.limitation })),
-    records: context.records.map((record) => ({ category: record.category, title: record.title, documentDate: record.documentDate, status: record.status, verification: record.verification })),
-    openRequests: context.requests.filter((request) => request.status === 'open'),
-    consentSummaries: context.consents.map((consent) => ({ institution: consent.institution, purpose: consent.purpose, status: consent.status, scopes: consent.scopes })),
-    financing: context.financing.map((facility) => ({ institution: facility.institution, status: facility.status, purpose: facility.purpose })),
-    weather: context.weather.map((item) => ({ farmName: item.farmName, location: item.location, condition: item.condition, rainMm: item.rainMm, rainProbabilityPct: item.rainProbabilityPct, fieldActivityNote: item.fieldActivityNote, enterpriseNotes: item.enterpriseNotes, updatedAt: item.updatedAt })),
-    climate: context.climate.map((item) => ({ farmName: item.farmName, title: item.title, value: item.value, interpretation: item.interpretation, period: item.period, sourceLabel: item.sourceLabel, updatedAt: item.updatedAt })),
-    markets: context.markets.map((item) => ({ commodity: item.commodity, marketScope: item.marketScope, observedPrice: item.observedPrice, farmerRecordedPrice: item.farmerRecordedPrice, localRange: item.localRange, movementLabel: item.movementLabel, interpretation: item.interpretation, updatedAt: item.updatedAt })),
-    alerts: context.alerts.map((item) => ({ category: item.category, title: item.title, detail: item.detail, severity: item.severity, relatedEntityLabel: item.relatedEntityLabel })),
-    activity: (context.activity ?? []).slice(0, 12).map((item) => ({ type: item.type, title: item.title, detail: item.detail, occurredAt: item.occurredAt })),
-    places: (context.places ?? []).slice(0, 8).map((item) => ({
-      name: item.name,
-      category: item.category,
-      distanceLabel: item.distanceLabel,
-      verificationLabel: item.verificationLabel,
-      services: item.services.slice(0, 3),
-      commodities: item.commodities.slice(0, 4),
-      priceLabel: item.priceLabel,
-      recommendedLine: item.recommendedLine
-    })),
-    pendingOutboxCount: context.outbox.filter((item) => item.state !== 'SYNCED').length
+    packet: {
+      farmer: packet.farmer,
+      location: packet.location,
+      farms: packet.farms,
+      enterprises: packet.enterprises,
+      toolsUsed: packet.toolsUsed,
+      facts: packet.facts.map((item) => ({
+        attribute: item.attribute,
+        value: item.value,
+        source: item.source,
+        verification: item.verification,
+        confidence: item.confidence,
+        farmerLine: item.farmerLine
+      })),
+      weatherLine: packet.weatherLine,
+      marketLines: packet.marketLines,
+      placeLines: packet.placeLines,
+      profileAction: packet.profileAction,
+      risk: packet.risk,
+      layers: packet.layers
+    },
+    screen: context.screenContext ?? null
   };
 }
 

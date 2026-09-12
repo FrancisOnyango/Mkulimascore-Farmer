@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { AskBar } from '@/components/AskBar';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
@@ -44,14 +45,24 @@ export default function InsightCategory() {
     if (selectedKind === 'enterprise') return insights.filter((item) => item.kind === 'enterprise' || item.kind === 'farm');
     return insights.filter((item) => item.kind === selectedKind);
   }, [insights, selectedKind]);
-  const relevantMarkets = markets.filter((item) => item.dataStatus !== 'unavailable' && enterprises.some((enterprise) => enterprise.id === item.enterpriseId || enterprise.sector === item.commodity || enterprise.name === item.enterpriseName));
-  const shownMarkets = relevantMarkets.length ? relevantMarkets : markets.filter((item) => item.dataStatus !== 'unavailable');
+  const farmSectors = new Set<string>(enterprises.map((enterprise) => enterprise.sector));
+  const shownMarkets = markets
+    .filter((item) => item.dataStatus !== 'unavailable')
+    .sort((a, b) => Number(farmSectors.has(b.commodity)) - Number(farmSectors.has(a.commodity)));
   const farmWeather = selectedFarm ? weather.filter((item) => item.farmId === selectedFarm.id) : weather;
 
   return (
     <AppShell>
       <H2>{labels[selectedKind] ?? 'Insights'}</H2>
       <Body style={styles.lead}>{leadFor(selectedKind)}</Body>
+      {selectedKind === 'weather' || selectedKind === 'markets' ? (
+        <View style={{ marginTop: spacing.md }}>
+          <AskBar
+            hint={selectedKind === 'weather' ? 'Will it rain on this farm?' : 'Where should I sell near this farm?'}
+            onPress={() => router.push({ pathname: '/ask', params: { screen: selectedKind, farmId: selectedFarm?.id ?? '' } })}
+          />
+        </View>
+      ) : null}
 
       {selectedKind === 'weather' ? (
         <View style={{ gap: spacing.md }}>
@@ -94,6 +105,13 @@ export default function InsightCategory() {
 
       {selectedKind === 'markets' ? (
         <View style={{ gap: spacing.md }}>
+          {shownMarkets.length ? (
+            <Card>
+              <Caption>Produce near your farm</Caption>
+              <H3 style={{ marginTop: spacing.xs }}>Latest reported prices</H3>
+              <Body style={{ marginTop: spacing.sm }}>Ministry of Agriculture (KAMIS). Not a live shop offer. Your crops are listed first.</Body>
+            </Card>
+          ) : null}
           {opportunities.length ? opportunities.map((market, index) => (
             <Card key={market.id}>
               <Caption>Option {index + 1} · from your farm place</Caption>
@@ -192,7 +210,7 @@ export default function InsightCategory() {
 
 function leadFor(kind: string) {
   if (kind === 'weather') return 'Forecast for the farm place — not the phone. Forecasts can change.';
-  if (kind === 'markets') return 'Nearby options from the farm place. We never invent a price. Stale is labelled as latest reported.';
+  if (kind === 'markets') return 'Produce prices near the farm place — maize, milk, tomato, beans and more when the Ministry has reported them. We never invent a price.';
   if (kind === 'financial') return 'This is not a loan offer. It only describes how complete your farm information is.';
   if (kind === 'climate') return 'Seasonal context when a reliable location source exists.';
   return 'Information tied to your farm and records.';

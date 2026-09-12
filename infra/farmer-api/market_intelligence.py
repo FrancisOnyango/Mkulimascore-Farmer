@@ -11,16 +11,59 @@ import math
 import re
 import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from datetime import datetime, timezone
 from typing import Any
 
 _CACHE: dict[str, Any] = {"at": 0.0, "rows": []}
-CACHE_SECONDS = 4 * 60 * 60
+CACHE_SECONDS = 6 * 60 * 60
+INGEST_BUDGET_SECONDS = 18
+PRODUCT_TIMEOUT_SECONDS = 10
+PRODUCT_PAGE_SIZE = 24
 
-KAMIS_URL = "https://kamis.kilimo.go.ke/site/market?per_page=80"
+KAMIS_URL = "https://kamis.kilimo.go.ke/site/market"
 KAMIS_SOURCE = "KAMIS"
 SOURCE_LABEL = "Ministry of Agriculture (KAMIS)"
 USER_AGENT = "MkulimaScore-MarketIngest/0.1 (server ingest; not a farmer client)"
+
+# Official KAMIS product IDs. The unfiltered table is maize-first and hides the rest.
+KAMIS_PRODUCTS: list[tuple[int, str]] = [
+    (1, "Maize"),
+    (149, "Maize"),
+    (133, "Dairy"),
+    (153, "Dairy"),
+    (70, "Dairy"),
+    (61, "Tomato"),
+    (163, "Irish potatoes"),
+    (57, "Irish potatoes"),
+    (59, "Sweet potatoes"),
+    (246, "Beans"),
+    (64, "Beans"),
+    (29, "Beans"),
+    (188, "Pigeon peas"),
+    (189, "Cowpeas"),
+    (10, "Green grams"),
+    (158, "Onion"),
+    (154, "Kale"),
+    (58, "Cabbage"),
+    (4, "Rice"),
+    (3, "Wheat"),
+    (142, "Avocado"),
+    (147, "Mango"),
+    (226, "Banana"),
+    (255, "Banana"),
+    (150, "Watermelon"),
+    (151, "Pineapple"),
+    (125, "Passion fruit"),
+    (72, "Poultry"),
+    (218, "Tea"),
+    (219, "Coffee"),
+    (228, "Macadamia"),
+    (12, "Groundnuts"),
+    (160, "Other"),
+    (60, "Other"),
+    (217, "Fertilizer"),
+]
 
 # OSM / known marketplace coordinates. Aliases match KAMIS market names.
 MARKETS: list[dict[str, Any]] = [
@@ -55,22 +98,51 @@ COMMODITY_MAP = {
     "dry maize": "Maize",
     "white maize": "Maize",
     "green maize": "Maize",
+    "yellow maize": "Maize",
     "maize flour": "Maize",
     "maize bran": "Maize",
     "cow milk": "Dairy",
     "cow milk(at collection point)": "Dairy",
     "cow milk(processd)": "Dairy",
     "cow milk(processed)": "Dairy",
+    "goat milk": "Dairy",
+    "camel milk": "Camels",
     "tomato": "Tomato",
     "tomatoes": "Tomato",
+    "tree tomato": "Tomato",
     "white irish potatoes": "Irish potatoes",
+    "red irish potato": "Irish potatoes",
     "irish potatoes": "Irish potatoes",
+    "sweet potatoes": "Sweet potatoes",
     "beans": "Beans",
     "mixed beans": "Beans",
+    "beans red haricot": "Beans",
+    "beans rosecoco": "Beans",
+    "pigeon peas": "Pigeon peas",
+    "cowpeas": "Cowpeas",
+    "green grams": "Green grams",
+    "ground nuts": "Groundnuts",
+    "dry onions": "Onion",
+    "spring onions": "Onion",
+    "kales/sukuma wiki": "Kale",
+    "kales": "Kale",
+    "cabbages": "Cabbage",
+    "carrots": "Other",
+    "fresh peas": "Other",
+    "rice": "Rice",
+    "paddy rice": "Rice",
+    "wheat": "Wheat",
+    "avocado": "Avocado",
+    "mangoes": "Mango",
+    "banana": "Banana",
+    "water melon": "Watermelon",
+    "pineapples": "Pineapple",
+    "passion fruits": "Passion fruit",
+    "eggs": "Poultry",
     "tea": "Tea",
     "coffee": "Coffee",
-    "avocado": "Avocado",
     "macadamia seed": "Macadamia",
+    "fertilizer": "Fertilizer",
 }
 
 
@@ -86,50 +158,23 @@ def nearby_intelligence(
     observations, fetch_status = ingest_kamis(cache_get=cache_get, cache_put=cache_put)
     origin = {"latitude": lat, "longitude": lng}
     wanted = canonicalize_commodity(commodity) if commodity else None
-    options: list[dict[str, Any]] = []
-    for market in MARKETS:
+    quotes: list[dict[str, Any]] = []
+    for row in observations:
+        market = match_geocoded_market(row)
+        if not market:
+            continue
         km = haversine_km(origin, {"latitude": market["lat"], "longitude": market["lng"]})
         if km > radius_km:
             continue
-        match = latest_for_market(observations, market, wanted)
-        freshness = freshness_for((match or {}).get("observed_at"))
-        wholesale = (match or {}).get("wholesale_kes_per_kg")
-        retail = (match or {}).get("retail_kes_per_kg")
-        price_kind = "wholesale" if wholesale is not None else ("retail" if retail is not None else None)
-        shown = wholesale if wholesale is not None else retail
-        relevance = rank(km, wanted, match, freshness["score"])
-        item = {
-            "marketId": market["id"],
-            "name": market["name"],
-            "town": market["town"],
-            "county": (match or {}).get("county") or market["county"],
-            "latitude": market["lat"],
-            "longitude": market["lng"],
-            "km": round(km, 1),
-            "distanceLabel": format_km(km),
-            "commodity": ((match or {}).get("commodity") if match else wanted) or None,
-            "sourceCommodity": (match or {}).get("source_commodity"),
-            "classification": (match or {}).get("classification"),
-            "wholesaleKesPerKg": wholesale,
-            "retailKesPerKg": retail,
-            "sourceQuote": (match or {}).get("source_quote"),
-            "canonicalUnit": "kg",
-            "canonicalPrice": shown,
-            "priceKind": price_kind,
-            "observedAt": (match or {}).get("observed_at"),
-            "ingestedAt": ingested_at,
-            "freshness": freshness["state"],
-            "freshnessLabel": freshness["label"],
-            "confidence": "OFFICIAL_REPORTED" if match else "LOCATION_ONLY",
-            "source": KAMIS_SOURCE if match else None,
-            "sourceLabel": SOURCE_LABEL if match else "Mapped market place",
-        }
-        item["_rank"] = rank(km, wanted, match, freshness["score"])
-        options.append(item)
-    options.sort(key=lambda row: (-row["_rank"], row["km"]))
-    for row in options:
-        row.pop("_rank", None)
-    priced = [item for item in options if item.get("canonicalPrice") is not None]
+        quotes.append(quote_from_row(row, market, km, ingested_at, wanted))
+    latest = latest_by_market_commodity(quotes)
+    latest.sort(key=lambda item: (-item["_rank"], item["km"], item.get("commodity") or ""))
+    produce = best_per_commodity(latest)
+    for item in latest:
+        item.pop("_rank", None)
+    for item in produce:
+        item.pop("_rank", None)
+    priced = [item for item in produce if item.get("canonicalPrice") is not None]
     best = priced[0] if priced else None
     return {
         "status": "reported" if observations else fetch_status,
@@ -137,12 +182,15 @@ def nearby_intelligence(
         "disclaimer": "Latest reported market prices from the Ministry of Agriculture. Not a live exchange feed.",
         "ingestedAt": ingested_at,
         "observationCount": len(observations),
-        "nearby": options[:6],
+        "commodityCount": len({item.get("commodity") for item in produce if item.get("commodity")}),
+        "nearby": latest[:24],
+        "produce": produce[:20],
         "bestNearby": {
             "name": best["name"],
             "km": best["km"],
             "distanceLabel": best["distanceLabel"],
-            "priceLabel": f"KES {best['canonicalPrice']}/kg",
+            "commodity": best.get("commodity"),
+            "priceLabel": f"{best.get('commodity') or 'Produce'} KES {best['canonicalPrice']}/kg",
             "priceKind": best["priceKind"],
             "freshnessLabel": best["freshnessLabel"],
         } if best else None,
@@ -151,36 +199,89 @@ def nearby_intelligence(
 
 def ingest_kamis(cache_get=None, cache_put=None) -> tuple[list[dict[str, Any]], str]:
     now = time.time()
-    if _CACHE["rows"] and now - float(_CACHE["at"]) < CACHE_SECONDS:
+    if cache_is_usable(_CACHE["rows"], _CACHE["at"], now):
         return list(_CACHE["rows"]), "reported"
     if cache_get:
         cached = cache_get()
-        if cached and cached.get("rows") and now - float(cached.get("at") or 0) < CACHE_SECONDS:
+        if cached and cache_is_usable(cached.get("rows") or [], cached.get("at") or 0, now):
             _CACHE["rows"] = cached["rows"]
             _CACHE["at"] = cached["at"]
             return list(cached["rows"]), "reported"
-    request = urllib.request.Request(KAMIS_URL, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
-    try:
-        with urllib.request.urlopen(request, timeout=28) as response:
-            html = response.read().decode("utf-8", "replace")
-            print(f"KAMIS_FETCH status={response.status} bytes={len(html)}")
-    except Exception as exc:
-        print(f"KAMIS_FETCH_ERROR {type(exc).__name__}: {exc}")
-        if _CACHE["rows"]:
-            return list(_CACHE["rows"]), "reported"
-        if cache_get:
-            cached = cache_get()
-            if cached and cached.get("rows"):
-                return list(cached["rows"]), "reported"
-        return [], "unavailable"
-    rows = parse_kamis_table(html)
-    print(f"KAMIS_PARSE rows={len(rows)}")
+    rows = fetch_kamis_products()
+    print(f"KAMIS_PARSE rows={len(rows)} commodities={len({row.get('commodity') for row in rows})}")
     if rows:
         _CACHE["rows"] = rows
         _CACHE["at"] = now
         if cache_put:
             cache_put({"rows": rows, "at": now, "ingestedAt": utcnow()})
-    return rows, "reported" if rows else "unavailable"
+        return rows, "reported"
+    if _CACHE["rows"]:
+        return list(_CACHE["rows"]), "reported"
+    if cache_get:
+        cached = cache_get()
+        if cached and cached.get("rows"):
+            return list(cached["rows"]), "reported"
+    return [], "unavailable"
+
+
+def fetch_kamis_products() -> list[dict[str, Any]]:
+    deadline = time.time() + INGEST_BUDGET_SECONDS
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    pool = ThreadPoolExecutor(max_workers=6)
+    pending = {
+        pool.submit(fetch_kamis_product, product_id, label): (product_id, label)
+        for product_id, label in KAMIS_PRODUCTS
+    }
+    try:
+        while pending and time.time() < deadline:
+            done, leftover = wait(set(pending), timeout=max(0.2, deadline - time.time()), return_when=FIRST_COMPLETED)
+            if not done:
+                break
+            for future in done:
+                product_id, label = pending.pop(future)
+                try:
+                    batch = future.result()
+                except Exception as exc:
+                    print(f"KAMIS_PRODUCT_ERROR id={product_id} {type(exc).__name__}: {exc}")
+                    continue
+                print(f"KAMIS_PRODUCT id={product_id} label={label} rows={len(batch)}")
+                for row in batch:
+                    key = (
+                        str(row.get("source_commodity") or ""),
+                        str(row.get("market") or ""),
+                        str(row.get("observed_at") or ""),
+                        str(row.get("source_quote") or ""),
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    rows.append(row)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return rows
+
+
+def cache_is_usable(rows: list[dict[str, Any]], cached_at: float, now: float) -> bool:
+    if not rows:
+        return False
+    commodities = {str(row.get("commodity") or "") for row in rows if row.get("commodity")}
+    if len(commodities) < 4:
+        return False
+    return now - float(cached_at or 0) < CACHE_SECONDS
+
+
+def fetch_kamis_product(product_id: int, label: str) -> list[dict[str, Any]]:
+    url = f"{KAMIS_URL}?product={product_id}&per_page={PRODUCT_PAGE_SIZE}"
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
+    with urllib.request.urlopen(request, timeout=PRODUCT_TIMEOUT_SECONDS) as response:
+        html = response.read().decode("utf-8", "replace")
+        print(f"KAMIS_FETCH product={product_id} status={response.status} bytes={len(html)}")
+    rows = parse_kamis_table(html)
+    for row in rows:
+        if not row.get("commodity") or row.get("commodity") == row.get("source_commodity"):
+            row["commodity"] = canonicalize_commodity(row.get("source_commodity")) or label
+    return rows
 
 
 def parse_kamis_table(html: str) -> list[dict[str, Any]]:
@@ -214,6 +315,73 @@ def parse_kamis_table(html: str) -> list[dict[str, Any]]:
     return observations
 
 
+def match_geocoded_market(row: dict[str, Any]) -> dict[str, Any] | None:
+    hay = f"{row.get('market') or ''} {row.get('county') or ''}".lower()
+    for market in MARKETS:
+        names = {market["name"].lower(), market["town"].lower(), *[alias.lower() for alias in market["aliases"]]}
+        if any(name in hay or hay in name for name in names):
+            return market
+    return None
+
+
+def quote_from_row(row: dict[str, Any], market: dict[str, Any], km: float, ingested_at: str, wanted: str | None) -> dict[str, Any]:
+    freshness = freshness_for(row.get("observed_at"))
+    wholesale = row.get("wholesale_kes_per_kg")
+    retail = row.get("retail_kes_per_kg")
+    shown = wholesale if wholesale is not None else retail
+    price_kind = "wholesale" if wholesale is not None else ("retail" if retail is not None else None)
+    item = {
+        "marketId": market["id"],
+        "name": market["name"],
+        "town": market["town"],
+        "county": row.get("county") or market["county"],
+        "latitude": market["lat"],
+        "longitude": market["lng"],
+        "km": round(km, 1),
+        "distanceLabel": format_km(km),
+        "commodity": row.get("commodity"),
+        "sourceCommodity": row.get("source_commodity"),
+        "classification": row.get("classification"),
+        "wholesaleKesPerKg": wholesale,
+        "retailKesPerKg": retail,
+        "sourceQuote": row.get("source_quote"),
+        "canonicalUnit": "kg",
+        "canonicalPrice": shown,
+        "priceKind": price_kind,
+        "observedAt": row.get("observed_at"),
+        "ingestedAt": ingested_at,
+        "freshness": freshness["state"],
+        "freshnessLabel": freshness["label"],
+        "confidence": "OFFICIAL_REPORTED",
+        "source": KAMIS_SOURCE,
+        "sourceLabel": SOURCE_LABEL,
+        "_rank": rank(km, wanted, row, freshness["score"]),
+    }
+    return item
+
+
+def latest_by_market_commodity(quotes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in quotes:
+        key = (str(item.get("marketId") or ""), str(item.get("commodity") or item.get("sourceCommodity") or ""))
+        current = latest.get(key)
+        if not current or (item.get("observedAt") or "") > (current.get("observedAt") or ""):
+            latest[key] = item
+    return list(latest.values())
+
+
+def best_per_commodity(quotes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    best: dict[str, dict[str, Any]] = {}
+    for item in quotes:
+        commodity = str(item.get("commodity") or "")
+        if not commodity or item.get("canonicalPrice") is None:
+            continue
+        current = best.get(commodity)
+        if not current or item.get("_rank", 0) > current.get("_rank", 0):
+            best[commodity] = dict(item)
+    return sorted(best.values(), key=lambda row: (-row.get("_rank", 0), row["km"]))
+
+
 def latest_for_market(observations: list[dict[str, Any]], market: dict[str, Any], wanted: str | None):
     names = {market["name"].lower(), market["town"].lower(), *[alias.lower() for alias in market["aliases"]]}
     matches = []
@@ -222,7 +390,6 @@ def latest_for_market(observations: list[dict[str, Any]], market: dict[str, Any]
         if not any(name in hay or hay in name for name in names):
             continue
         if wanted and row["commodity"] != wanted and (row.get("source_commodity") or "").lower().find(wanted.lower()) < 0:
-            # keep a weaker match only if no commodity filter hit later
             if canonicalize_commodity(row.get("source_commodity")) != wanted:
                 continue
         matches.append(row)
@@ -309,7 +476,7 @@ def utcnow() -> str:
 
 
 if __name__ == "__main__":
-    report = nearby_intelligence(-0.4167, 36.95, "Maize")
-    print(report["status"], report["observationCount"], report.get("bestNearby"))
-    for item in report["nearby"][:5]:
-        print(item["name"], item["distanceLabel"], item.get("canonicalPrice"), item.get("freshnessLabel"), item.get("sourceQuote"))
+    report = nearby_intelligence(-0.4167, 36.95)
+    print(report["status"], report["observationCount"], report.get("commodityCount"), report.get("bestNearby"))
+    for item in report.get("produce") or []:
+        print(item.get("commodity"), item["name"], item["distanceLabel"], item.get("canonicalPrice"), item.get("freshnessLabel"))

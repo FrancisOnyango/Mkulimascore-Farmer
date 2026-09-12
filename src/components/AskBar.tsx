@@ -3,7 +3,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/constants/theme';
 
-export function AskBar({ onPress }: { onPress: () => void }) {
+export function AskBar({
+  onPress,
+  hint = 'A question about this farm'
+}: {
+  onPress: () => void;
+  hint?: string;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -16,7 +22,7 @@ export function AskBar({ onPress }: { onPress: () => void }) {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Ask Mkulima</Text>
-        <Text style={styles.detail}>A question about this farm</Text>
+        <Text style={styles.detail}>{hint}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.faint} />
     </Pressable>

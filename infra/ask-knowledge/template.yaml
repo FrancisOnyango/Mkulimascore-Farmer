@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Staging Aurora PostgreSQL for the Ask Mkulima knowledge library.
+  Lambda stays out of the VPC and queries through the RDS Data API.
+  Farmer evidence stays in DynamoDB. This database is retrieval only.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0aaaa151809d7724c
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-0374cafed4734a66c,subnet-0f2e9491c49d1ca18,subnet-08f9d227f19cab2da"
+
+Resources:
+  KnowledgeSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Ask Mkulima knowledge
+      SubnetIds: !Ref SubnetIds
+      Tags:
+        - Key: App
+          Value: mkulima-ask
+
+  KnowledgeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Ask knowledge Aurora - no public SQL
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: App
+          Value: mkulima-ask
+
+  KnowledgeCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: mkulima-ask-knowledge-staging
+      Engine: aurora-postgresql
+      EngineVersion: "16.14"
+      DatabaseName: mkulima_knowledge
+      MasterUsername: mkulima
+      ManageMasterUserPassword: true
+      DBSubnetGroupName: !Ref KnowledgeSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref KnowledgeSecurityGroup
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 1
+      EnableHttpEndpoint: true
+      StorageEncrypted: true
+      BackupRetentionPeriod: 1
+      DeletionProtection: false
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: App
+          Value: mkulima-ask
+
+  KnowledgeWriter:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref KnowledgeCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-postgresql
+      PubliclyAccessible: false
+      Tags:
+        - Key: App
+          Value: mkulima-ask
+
+Outputs:
+  ClusterArn:
+    Value: !GetAtt KnowledgeCluster.DBClusterArn
+  SecretArn:
+    Value: !GetAtt KnowledgeCluster.MasterUserSecret.SecretArn
+  DatabaseName:
+    Value: mkulima_knowledge
+  Endpoint:
+    Value: !GetAtt KnowledgeCluster.Endpoint.Address

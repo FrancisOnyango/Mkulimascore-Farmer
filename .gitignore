@@ -1,6 +1,13 @@
+__pycache__/
+infra/farmer-api/__pycache__/
 infra/farmer-api/env.json
 infra/farmer-api/handler.zip
 infra/farmer-api/kamis-snapshot-item.json
+infra/farmer-api/kamis-put-item.json
+infra/farmer-api/otp-*.json
+infra/farmer-api/nearby.json
+infra/farmer-api/token.txt
+infra/farmer-api/_seed_params.json
 node_modules/
 .expo/
 dist/

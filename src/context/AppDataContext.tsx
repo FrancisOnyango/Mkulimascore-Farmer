@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import * as Network from 'expo-network';
+import type { AskDraft, AskScreen } from '@/domain/ask';
 import type {
   ActivityItem,
   AppSettings,
@@ -20,6 +21,7 @@ import type {
   Passport,
   PersonalizedAlert
 } from '@/domain/types';
+import { FarmerAppService } from '@/application/FarmerAppService';
 import { createAskMkulimaClient } from '@/lib/ai/AskMkulimaService';
 import { createFarmerApi } from '@/lib/api/ApiClient';
 import { isLiveBackend } from '@/lib/api/mode';
@@ -87,7 +89,9 @@ interface AppData {
   selectedFarmId: string | null;
   setSelectedFarmId: (farmId: string) => void;
   refresh: () => Promise<void>;
-  askMkulima: (question: string) => Promise<void>;
+  askMkulima: (question: string, options?: { screen?: AskScreen; farmId?: string }) => Promise<void>;
+  confirmAskDraft: (draft: AskDraft) => Promise<void>;
+  dismissAskDraft: () => Promise<void>;
   deleteAskMessage: (id: string) => Promise<void>;
   clearAskConversation: () => Promise<void>;
   saveLanguage: (language: AppSettings['language']) => Promise<void>;
@@ -96,7 +100,7 @@ interface AppData {
 }
 
 const Context = createContext<AppData | null>(null);
-type AppDataState = Omit<AppData, 'refresh' | 'askMkulima' | 'selectedFarmId' | 'setSelectedFarmId' | 'deleteAskMessage' | 'clearAskConversation' | 'saveLanguage' | 'saveMarketChangeThreshold' | 'saveSevereWeatherAlerts'>;
+type AppDataState = Omit<AppData, 'refresh' | 'askMkulima' | 'confirmAskDraft' | 'dismissAskDraft' | 'selectedFarmId' | 'setSelectedFarmId' | 'deleteAskMessage' | 'clearAskConversation' | 'saveLanguage' | 'saveMarketChangeThreshold' | 'saveSevereWeatherAlerts'>;
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppDataState>({
@@ -168,13 +172,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
           }
         }));
       }
-      const enterpriseSnapshot = await listEnterprises();
       const locatedFarm = farmSnapshot.find((farm) => farm.latitude != null && farm.longitude != null);
       const marketResult = allowLiveFetch
         ? await fetchLiveMarketData({
           latitude: locatedFarm?.latitude,
-          longitude: locatedFarm?.longitude,
-          commodity: enterpriseSnapshot[0]?.sector
+          longitude: locatedFarm?.longitude
         })
         : { status: 'cached' as const, sourceLabel: 'Saved market reference', markets: [] };
       await Promise.all(marketResult.markets.map((market) => saveMarket(market)));
@@ -234,12 +236,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const askMkulima = useCallback(async (question: string) => {
+  const askMkulima = useCallback(async (question: string, options?: { screen?: AskScreen; farmId?: string }) => {
     const trimmed = question.trim();
     if (!trimmed) return;
     await initDb();
     const farmerMessage = await addAskMkulimaMessage({ role: 'farmer', text: trimmed });
-    const farm = data.farms.find((item) => item.id === selectedFarmId) ?? data.farms[0];
+    const farmId = options?.farmId ?? selectedFarmId;
+    const farm = data.farms.find((item) => item.id === farmId) ?? data.farms[0];
     const extras = await listFarmerPlaces();
     const places = listNearbyPlaces({
       farm,
@@ -249,7 +252,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     });
     const snapshot = {
       passport: data.passport,
-      selectedFarmId,
+      selectedFarmId: farmId,
+      screenContext: options?.screen ? { screen: options.screen, farmId: farm?.id } : undefined,
       farms: data.farms,
       enterprises: data.enterprises,
       insights: data.insights,
@@ -275,6 +279,58 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   }, [data.activity, data.alerts, data.askMessages, data.climate, data.consents, data.enterprises, data.farms, data.financing, data.insights, data.markets, data.outbox, data.passport, data.records, data.requests, data.settings.language, data.weather, refresh, selectedFarmId]);
+
+  const confirmAskDraft = useCallback(async (draft: AskDraft) => {
+    await initDb();
+    const enterpriseId = draft.enterpriseId ?? data.enterprises.find((item) => item.primary)?.id ?? data.enterprises[0]?.id;
+    if (!enterpriseId) {
+      await addAskMkulimaMessage({
+        role: 'assistant',
+        text: 'I understood the figure, but I cannot save it until you add what you grow or keep.'
+      });
+      await refresh();
+      return;
+    }
+    if (draft.kind === 'production' && draft.quantity != null && draft.unit) {
+      await FarmerAppService.submitProduction({
+        enterpriseId,
+        metric: draft.unit === 'litres' ? 'Milk' : 'Harvest',
+        quantity: draft.quantity,
+        unit: draft.unit,
+        occurredAt: draft.occurredAt,
+        note: draft.note
+      });
+    } else if (draft.kind === 'cost' && draft.amount != null) {
+      await FarmerAppService.submitCost({
+        enterpriseId,
+        category: draft.category || 'Other',
+        amount: draft.amount,
+        currency: 'KES',
+        occurredAt: draft.occurredAt,
+        note: draft.note
+      });
+    } else {
+      await addAskMkulimaMessage({
+        role: 'assistant',
+        text: 'I am missing a quantity or amount, so I did not save anything.'
+      });
+      await refresh();
+      return;
+    }
+    await addAskMkulimaMessage({
+      role: 'assistant',
+      text: 'Saved. Added by you — not checked during a farm visit. You can correct it from Activity if I misunderstood.'
+    });
+    await refresh();
+  }, [data.enterprises, refresh]);
+
+  const dismissAskDraft = useCallback(async () => {
+    await addAskMkulimaMessage({
+      role: 'assistant',
+      text: 'Not saved. Tell me again if you want to add it later.'
+    });
+    await refresh();
+  }, [refresh]);
 
   const deleteAskMessage = useCallback(async (id: string) => {
     await deleteAskMkulimaMessage(id);
@@ -326,8 +382,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const activeFarmId = selectedFarmId ?? data.farms[0]?.id ?? null;
   const value = useMemo(
-    () => ({ ...data, selectedFarmId: activeFarmId, setSelectedFarmId, refresh, askMkulima, deleteAskMessage, clearAskConversation, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts }),
-    [activeFarmId, askMkulima, clearAskConversation, data, deleteAskMessage, refresh, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts]
+    () => ({ ...data, selectedFarmId: activeFarmId, setSelectedFarmId, refresh, askMkulima, confirmAskDraft, dismissAskDraft, deleteAskMessage, clearAskConversation, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts }),
+    [activeFarmId, askMkulima, clearAskConversation, confirmAskDraft, data, deleteAskMessage, dismissAskDraft, refresh, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts]
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

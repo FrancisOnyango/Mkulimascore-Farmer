@@ -41,7 +41,7 @@ export default function Profile() {
         </View>
       </View>
       <View style={{ marginTop: spacing.lg }}>
-        <AskBar onPress={() => router.push('/ask')} />
+        <AskBar hint="What should I do first?" onPress={() => router.push({ pathname: '/ask', params: { screen: 'profile' } })} />
       </View>
 
       <FarmerSection title="Mkulima Passport" action="Open" onAction={() => router.push('/passport')}>

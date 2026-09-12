@@ -11,14 +11,16 @@ import {
   TextInput,
   View
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppShell } from '@/components/AppShell';
 import { BrandMark } from '@/components/BrandMark';
 import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
 import { startVoiceInput } from '@/lib/voice/voiceInput';
+import { startersForScreen } from '@/lib/ai/askPolicy';
 import { getAskMkulimaIntegrationStatus, type AskMkulimaIntegrationStatus } from '@/lib/ai/AskMkulimaIntegration';
+import type { AskScreen } from '@/domain/ask';
 import type { AskMkulimaMessage } from '@/domain/types';
 
 function getContextualStarters({
@@ -47,9 +49,13 @@ function getContextualStarters({
 }
 
 export default function AskMkulima() {
+  const params = useLocalSearchParams<{ screen?: string; farmId?: string }>();
+  const screen = (params.screen as AskScreen | undefined) ?? 'ask';
   const {
     askMessages,
     askMkulima,
+    confirmAskDraft,
+    dismissAskDraft,
     clearAskConversation,
     settings,
     weather,
@@ -63,10 +69,11 @@ export default function AskMkulima() {
     offline,
     ready
   } = useAppData();
-  const starters = useMemo(
-    () => getContextualStarters({ weather, markets, requests, farms, enterprises, records, insights, outbox }),
-    [enterprises, farms, insights, markets, outbox, records, requests, weather]
-  );
+  const starters = useMemo(() => {
+    const fromScreen = startersForScreen(screen);
+    if (fromScreen.length) return fromScreen;
+    return getContextualStarters({ weather, markets, requests, farms, enterprises, records, insights, outbox });
+  }, [enterprises, farms, insights, markets, outbox, records, requests, screen, weather]);
   const [question, setQuestion] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +101,7 @@ export default function AskMkulima() {
     setError(null);
     setQuestion('');
     try {
-      await askMkulima(trimmed);
+      await askMkulima(trimmed, { screen, farmId: params.farmId });
       setFailedQuestion('');
     } catch (sendError) {
       setQuestion(trimmed);
@@ -164,7 +171,7 @@ export default function AskMkulima() {
             <View style={styles.empty}>
               <BrandMark size={56} />
               <Text style={styles.emptyTitle}>Ask about this farm</Text>
-              <Text style={styles.emptyBody}>I use what you saved on this phone. I will not invent a price or promise a loan.</Text>
+              <Text style={styles.emptyBody}>I use what you saved, then weather, prices or places when those tools have data. I will not invent a price, a spray, or a loan.</Text>
               <View style={styles.starters}>
                 {starters.map((starter) => (
                   <Pressable key={starter} onPress={() => void send(starter)} disabled={sending} accessibilityRole="button" accessibilityLabel={`Ask: ${starter}`} style={styles.starter}>
@@ -182,6 +189,8 @@ export default function AskMkulima() {
               opened={openedSource === item.id}
               onToggleSource={() => setOpenedSource((current) => (current === item.id ? null : item.id))}
               onFollowUp={(followUp) => void send(followUp)}
+              onConfirmDraft={item.metadata?.draft ? () => void confirmAskDraft(item.metadata!.draft!) : undefined}
+              onDismissDraft={item.metadata?.draft ? () => void dismissAskDraft() : undefined}
             />
           )}
           ListFooterComponent={
@@ -244,7 +253,9 @@ function MessageBubble({
   sending,
   opened,
   onToggleSource,
-  onFollowUp
+  onFollowUp,
+  onConfirmDraft,
+  onDismissDraft
 }: {
   message: AskMkulimaMessage;
   last: boolean;
@@ -252,6 +263,8 @@ function MessageBubble({
   opened: boolean;
   onToggleSource: () => void;
   onFollowUp: (text: string) => void;
+  onConfirmDraft?: () => void;
+  onDismissDraft?: () => void;
 }) {
   if (message.role === 'farmer') {
     return (
@@ -284,7 +297,17 @@ function MessageBubble({
             ))}
           </View>
         ) : null}
-        {last && message.metadata?.followUps.length && !sending ? (
+        {last && message.metadata?.draft && !sending && onConfirmDraft ? (
+          <View style={styles.draftRow}>
+            <Pressable onPress={onConfirmDraft} accessibilityRole="button" style={styles.saveDraft}>
+              <Text style={styles.saveDraftText}>Save to records</Text>
+            </Pressable>
+            <Pressable onPress={onDismissDraft} accessibilityRole="button" style={styles.skipDraft}>
+              <Text style={styles.skipDraftText}>Not now</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {last && message.metadata?.followUps.length && !sending && !message.metadata.draft ? (
           <View style={styles.inlineFollow}>
             {message.metadata.followUps.slice(0, 2).map((followUp) => (
               <Pressable key={followUp} onPress={() => onFollowUp(followUp)} style={styles.followUp}>
@@ -349,6 +372,25 @@ const styles = StyleSheet.create({
   sourceBox: { marginTop: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.sm, gap: 4 },
   sourceLine: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   inlineFollow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  draftRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  saveDraft: {
+    minHeight: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandDark,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md
+  },
+  saveDraftText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  skipDraft: {
+    minHeight: 40,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md
+  },
+  skipDraftText: { color: colors.muted, fontWeight: '800', fontSize: 13 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
   typingBubble: {
     flexDirection: 'row',

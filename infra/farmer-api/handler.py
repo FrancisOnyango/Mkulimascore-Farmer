@@ -23,7 +23,9 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Key
 
+from ask_context import build_packet, classify_risk, high_risk_answer
 from ask_llm import provider_info, rewrite_answer
+from knowledge import search_knowledge
 from market_intelligence import nearby_intelligence
 from places_intelligence import find_duplicate, nearby_places
 
@@ -69,6 +71,17 @@ def route(method: str, path: str, event: dict[str, Any]):
 
     if path == "/api/v1/farmer/ask-mkulima/health" and method == "GET":
         return respond(200, provider_info())
+    if path == "/api/v1/farmer/ask-mkulima/context" and method == "GET":
+        farmer = require_farmer(event)
+        params = event.get("queryStringParameters") or {}
+        return respond(200, build_packet(farmer, str(params.get("q") or params.get("question") or "")))
+    if path == "/api/v1/farmer/ask-mkulima/knowledge" and method == "GET":
+        farmer = require_farmer(event)
+        params = event.get("queryStringParameters") or {}
+        return respond(200, {
+            "msid": farmer.get("msid"),
+            "hits": search_knowledge(str(params.get("q") or ""), str(params.get("sector") or "") or None),
+        })
 
     if path.startswith("/api/v1/auth/") and CORE_API_URL:
         return proxy_core(method, path, event)
@@ -136,6 +149,7 @@ def _market_nearby(farmer: dict[str, Any], event: dict[str, Any]):
                 "sourceLabel": "Ministry of Agriculture (KAMIS)",
                 "disclaimer": "Mark a farm place first. Market distance is from the farm, not the phone.",
                 "nearby": [],
+                "produce": [],
                 "bestNearby": None,
             })
         lat = float(farm["latitude"])
@@ -264,9 +278,31 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             ["What should I do first?"],
             [],
         ))
+    if classify_risk(question) == "high":
+        blocked = high_risk_answer(question)
+        return respond(200, ask_payload(
+            str(blocked.get("intent") or "general"),
+            str(blocked.get("text") or ""),
+            as_list(blocked.get("recommendations")),
+            as_list(blocked.get("followUps")),
+            as_list(blocked.get("sources")),
+        ))
 
     history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    packet = build_packet(farmer, question, context)
     built = draft if draft.get("text") else local_ask_draft(question, context)
+    enterprise = first(context.get("enterprises")) or first(packet.get("enterprises")) or {}
+    knowledge = search_knowledge(question, str(enterprise.get("sector") or enterprise.get("name") or "") or None)
+    if isinstance(built.get("facts"), dict):
+        built["facts"] = {**built["facts"], "packet": packet, "risk": packet.get("risk"), "knowledge": knowledge, "toolsUsed": list(packet.get("toolsUsed") or []) + (["search_agri_knowledge"] if knowledge else [])}
+    else:
+        built["facts"] = {"packet": packet, "risk": packet.get("risk"), "knowledge": knowledge}
+    if knowledge:
+        built["sources"] = as_list(built.get("sources")) + [{
+            "label": f"{item.get('sourceOrganisation')} guidance",
+            "freshness": f"Tier {item.get('authorityTier')}",
+            "limitation": "Published guidance, not a farm visit.",
+        } for item in knowledge if isinstance(item, dict)]
     text, llm = rewrite_answer(question, str(built.get("text") or ""), built, history)
     return respond(200, ask_payload(
         str(built.get("intent") or "general"),
@@ -355,16 +391,18 @@ def local_ask_draft(question: str, context: dict[str, Any]) -> dict[str, Any]:
             "sources": [],
         }
     if any(term in lowered for term in ("market", "price", "bei", "soko", "sell")):
-        if market:
-            commodity = market.get("commodity") or "Your crop"
-            price = market.get("observedPrice") or market.get("localRange") or "no latest reported price"
-            meaning = market.get("interpretation") or "This is a reported price, not what your buyer must pay."
+        board = []
+        for item in as_list(context.get("markets"))[:8]:
+            if isinstance(item, dict) and item.get("observedPrice"):
+                board.append(f"{item.get('commodity') or 'Produce'} {item.get('observedPrice')} at {item.get('marketScope') or 'a nearby market'}")
+        if board:
+            meaning = (market or {}).get("interpretation") or "These are reported prices, not what your buyer must pay."
             return {
                 "intent": "markets",
-                "text": f"{commodity}: {price}. {meaning}",
+                "text": f"Near {place}: {'; '.join(board)}. {meaning}",
                 "recommendations": ["Confirm the final price with your buyer."],
                 "followUps": ["What sale should I add?"],
-                "sources": [{"label": "Latest reported market price", "freshness": str(market.get("updatedAt") or "Saved"), "limitation": "A reported price is not a guaranteed offer."}],
+                "sources": [{"label": "Latest reported market prices", "freshness": str((market or {}).get("updatedAt") or "Saved"), "limitation": "A reported price is not a guaranteed offer."}],
             }
         return {
             "intent": "markets",

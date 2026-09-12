@@ -20,6 +20,21 @@
         "dynamodb:Query"
       ],
       "Resource": "arn:aws:dynamodb:us-east-1:295552411264:table/mkulima-farmer-staging"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds-data:ExecuteStatement",
+        "rds-data:BatchExecuteStatement"
+      ],
+      "Resource": "arn:aws:rds:us-east-1:295552411264:cluster:mkulima-ask-knowledge-staging"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:295552411264:secret:rds!*"
     }
   ]
 }

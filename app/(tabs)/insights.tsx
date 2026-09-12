@@ -23,7 +23,7 @@ export default function Insights() {
       <H1>Insights</H1>
       <Caption style={{ marginTop: spacing.sm }}>Weather, markets and profile — all from the farm, not a dashboard.</Caption>
       <View style={{ marginTop: spacing.lg }}>
-        <AskBar onPress={() => router.push('/ask')} />
+        <AskBar hint="Weather, prices or why the profile needs work" onPress={() => router.push({ pathname: '/ask', params: { screen: 'insights' } })} />
       </View>
 
       {farms.length > 1 ? (

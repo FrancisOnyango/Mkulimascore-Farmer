@@ -5,6 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { Body, Caption, Eyebrow, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
 import { StatusPill } from '@/components/StatusPill';
+import { AskBar } from '@/components/AskBar';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FarmPlaceMap } from '@/components/FarmPlaceMap';
 import { FarmerAppService } from '@/application/FarmerAppService';
@@ -71,6 +72,12 @@ export default function FarmDetail() {
       <Eyebrow>My Farm</Eyebrow>
       <H2 style={{ marginTop: spacing.sm }}>{farm.name}</H2>
       <Caption>{farm.location}</Caption>
+      <View style={{ marginTop: spacing.lg }}>
+        <AskBar
+          hint="Ask about this mapped farm"
+          onPress={() => router.push({ pathname: '/ask', params: { screen: 'farm_map', farmId: farm.id } })}
+        />
+      </View>
 
       <View style={styles.modes}>
         <Pressable onPress={() => setBasemap('satellite')} style={[styles.mode, basemap === 'satellite' && styles.modeOn]}><Text style={[styles.modeText, basemap === 'satellite' && styles.modeTextOn]}>Satellite</Text></Pressable>
