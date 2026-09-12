@@ -98,8 +98,23 @@ export default function Identity() {
         placeholder="Optional"
         hint="Stays on this phone unless you later share it."
       />
+      <Caption style={{ marginBottom: spacing.sm }}>{strings.identity.language}</Caption>
+      <View style={styles.langRow}>
+        <Pressable
+          onPress={() => setDraft((current) => ({ ...current, language: 'en' }))}
+          style={[styles.lang, (draft.language ?? 'en') === 'en' && styles.langOn]}
+        >
+          <Text style={styles.langText}>English</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setDraft((current) => ({ ...current, language: 'sw' }))}
+          style={[styles.lang, draft.language === 'sw' && styles.langOn]}
+        >
+          <Text style={styles.langText}>Kiswahili</Text>
+        </Pressable>
+      </View>
       {error ? <Caption style={styles.error}>{error}</Caption> : null}
-      <PrimaryButton label="Continue" onPress={() => void continueNext()} />
+      <PrimaryButton label={draft.language === 'sw' ? 'Endelea' : 'Continue'} onPress={() => void continueNext()} />
     </AppShell>
   );
 }
@@ -113,5 +128,9 @@ const styles = StyleSheet.create({
   list: { maxHeight: 220, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, backgroundColor: colors.surface, marginBottom: spacing.lg, overflow: 'hidden' },
   option: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.line },
   optionText: { fontSize: 16, color: colors.ink },
-  error: { color: colors.danger, fontWeight: '700', marginBottom: spacing.md }
+  error: { color: colors.danger, fontWeight: '700', marginBottom: spacing.md },
+  langRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
+  lang: { borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, paddingHorizontal: spacing.md, minHeight: 44, justifyContent: 'center' },
+  langOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  langText: { color: colors.brandDark, fontWeight: '800' }
 });

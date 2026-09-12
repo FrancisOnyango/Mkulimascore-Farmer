@@ -13,7 +13,7 @@ export function BrandMark({ size = 48, light = false }: { size?: number; light?:
         { width: size, height: size, borderRadius: size / 2, backgroundColor: light ? 'rgba(255,255,255,0.08)' : '#F5F3EA' }
       ]}
     >
-      <Image source={logo} style={{ width: size, height: size, borderRadius: size / 2 }} />
+      <Image source={logo} resizeMode="contain" style={{ width: size, height: size }} />
     </View>
   );
 }

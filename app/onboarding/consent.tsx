@@ -5,6 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2 } from '@/components/Typography';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FarmerAppService } from '@/application/FarmerAppService';
+import { BrandMark } from '@/components/BrandMark';
 import { strings } from '@/constants/strings';
 import { FARMER_CONSENT_VERSION, type OnboardingDraft } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -30,7 +31,8 @@ export default function Consent() {
 
   return (
     <AppShell>
-      <Caption>Step 1 of 6</Caption>
+      <BrandMark size={48} />
+      <Caption style={{ marginTop: spacing.md }}>Step 1 of 6</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{strings.consent.title}</H2>
       <Body style={styles.lead}>{strings.consent.body}</Body>
       <View style={styles.points}>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Redirect } from 'expo-router';
+import { BrandMark } from '@/components/BrandMark';
 import { colors } from '@/constants/theme';
 import type { OnboardingStep } from '@/domain/types';
 
@@ -37,7 +38,8 @@ export default function Index() {
 
   if (!target) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.canvas }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.canvas, gap: 16 }}>
+        <BrandMark size={72} />
         <Text style={{ color: colors.brandDark, fontSize: 28, fontWeight: '800' }}>Mkulima</Text>
       </View>
     );

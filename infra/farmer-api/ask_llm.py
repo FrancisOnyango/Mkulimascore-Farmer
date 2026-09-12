@@ -43,7 +43,9 @@ Greetings, thanks, and everyday questions are welcome. Sound like a neighbour, n
 If they greet, greet back using the farmer name and farm in FACTS, then one useful farm line.
 If they follow up, answer that follow-up. Do not repeat the previous answer. Do not greet again if you already answered.
 
-Write 2 to 5 short sentences in plain Kenyan English.
+Write 2 to 5 short sentences.
+If LANGUAGE is "sw", write plain Kenyan Kiswahili. Keep numbers, place names, KALRO, PCPB, KAMIS and KES as they are. Do not mix English except those official names.
+If LANGUAGE is "en", write plain Kenyan English.
 
 FACTS, PACKET and DRAFT are the farm book. The model is only one component.
 Weather, prices, nearby places and field notes must come from FACTS/PACKET tools, never from memory.
@@ -98,6 +100,7 @@ def rewrite_answer(
     draft_text: str,
     draft: dict[str, Any] | None = None,
     history: list[Any] | None = None,
+    language: str = "en",
 ) -> tuple[str, dict[str, Any]]:
     """Return (text, meta). Always returns a usable farmer answer."""
     clean_draft = (draft_text or "").strip()
@@ -109,7 +112,7 @@ def rewrite_answer(
     if not LLM_API_KEY or not clean_draft:
         return clean_draft, meta
 
-    rewritten = _call_llm(question, clean_draft, draft, history)
+    rewritten = _call_llm(question, clean_draft, draft, history, language)
     if rewritten and _safe_rewrite(rewritten):
         meta.update({"provider": LLM_PROVIDER, "model": LLM_MODEL, "rewritten": True})
         return rewritten, meta
@@ -129,10 +132,11 @@ def _recent_turns(history: list[Any] | None) -> list[dict[str, str]]:
     return turns[-6:]
 
 
-def _call_llm(question: str, draft_text: str, draft: dict[str, Any] | None, history: list[Any] | None) -> str | None:
+def _call_llm(question: str, draft_text: str, draft: dict[str, Any] | None, history: list[Any] | None, language: str = "en") -> str | None:
     user = json.dumps(
         {
             "question": question[:800],
+            "language": "sw" if language == "sw" else "en",
             "draft": {
                 "text": draft_text[:1200],
                 "intent": (draft or {}).get("intent"),

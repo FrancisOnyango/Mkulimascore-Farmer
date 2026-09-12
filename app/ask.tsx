@@ -19,6 +19,7 @@ import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
 import { startVoiceInput } from '@/lib/voice/voiceInput';
 import { startersForScreen } from '@/lib/ai/askPolicy';
+import { ASK_UI, localizeAskList } from '@/lib/i18n/askLanguage';
 import { getAskMkulimaIntegrationStatus, type AskMkulimaIntegrationStatus } from '@/lib/ai/AskMkulimaIntegration';
 import type { AskScreen } from '@/domain/ask';
 import type { AskMkulimaMessage } from '@/domain/types';
@@ -69,11 +70,12 @@ export default function AskMkulima() {
     offline,
     ready
   } = useAppData();
+  const ui = ASK_UI[settings.language];
   const starters = useMemo(() => {
-    const fromScreen = startersForScreen(screen);
+    const fromScreen = startersForScreen(screen, settings.language);
     if (fromScreen.length) return fromScreen;
-    return getContextualStarters({ weather, markets, requests, farms, enterprises, records, insights, outbox });
-  }, [enterprises, farms, insights, markets, outbox, records, requests, screen, weather]);
+    return localizeAskList(getContextualStarters({ weather, markets, requests, farms, enterprises, records, insights, outbox }), settings.language);
+  }, [enterprises, farms, insights, markets, outbox, records, requests, screen, settings.language, weather]);
   const [question, setQuestion] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,12 +111,12 @@ export default function AskMkulima() {
       const code = sendError instanceof Error ? sendError.message : '';
       setError(
         code === 'ASK_MKULIMA_RATE_LIMITED'
-          ? 'The assistant is busy. Wait a moment, then try again.'
+          ? ui.busy
           : code === 'ASK_MKULIMA_TIMEOUT'
-            ? 'That took too long. Your farm data is still safe.'
+            ? ui.timeout
             : code === 'AUTH_REQUIRED'
-              ? 'Sign in again if you want the live assistant. You can still ask from this phone.'
-              : 'I could not answer that. Your farm data is still safe. Try again when you have a signal.'
+              ? ui.auth
+              : ui.fail
       );
     } finally {
       setSending(false);
@@ -130,7 +132,7 @@ export default function AskMkulima() {
         await send(spoken);
       }
     } catch {
-      Alert.alert('Voice', 'Voice is not available here. Type your question.');
+      Alert.alert(ui.title, ui.voiceFail);
     } finally {
       setListening(false);
     }
@@ -147,13 +149,13 @@ export default function AskMkulima() {
           </Pressable>
           <BrandMark size={36} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Ask Mkulima</Text>
+            <Text style={styles.title}>{ui.title}</Text>
             <Text style={styles.status}>
-              {!ready ? 'Opening your farm book…' : offline ? 'On this phone' : integrationLabel(integration)}
+              {!ready ? ui.openingBook : offline ? ui.offline : integrationLabel(integration, settings.language)}
             </Text>
           </View>
           {askMessages.length ? (
-            <Pressable onPress={() => void clearAskConversation()} accessibilityRole="button" accessibilityLabel="Clear conversation" style={styles.iconBtn}>
+            <Pressable onPress={() => void clearAskConversation()} accessibilityRole="button" accessibilityLabel={ui.clear} style={styles.iconBtn}>
               <Ionicons name="trash-outline" size={18} color={colors.muted} />
             </Pressable>
           ) : null}
@@ -170,8 +172,8 @@ export default function AskMkulima() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <BrandMark size={56} />
-              <Text style={styles.emptyTitle}>Ask about this farm</Text>
-              <Text style={styles.emptyBody}>I use what you saved, then weather, prices or places when those tools have data. I will not invent a price, a spray, or a loan.</Text>
+              <Text style={styles.emptyTitle}>{ui.emptyTitle}</Text>
+              <Text style={styles.emptyBody}>{ui.emptyBody}</Text>
               <View style={styles.starters}>
                 {starters.map((starter) => (
                   <Pressable key={starter} onPress={() => void send(starter)} disabled={sending} accessibilityRole="button" accessibilityLabel={`Ask: ${starter}`} style={styles.starter}>
@@ -187,6 +189,7 @@ export default function AskMkulima() {
               last={item.id === lastAssistantId}
               sending={sending}
               opened={openedSource === item.id}
+              ui={ui}
               onToggleSource={() => setOpenedSource((current) => (current === item.id ? null : item.id))}
               onFollowUp={(followUp) => void send(followUp)}
               onConfirmDraft={item.metadata?.draft ? () => void confirmAskDraft(item.metadata!.draft!) : undefined}
@@ -199,7 +202,7 @@ export default function AskMkulima() {
                 <BrandMark size={28} />
                 <View style={styles.typingBubble}>
                   <ActivityIndicator color={colors.brand} size="small" />
-                  <Text style={styles.typingText}>Looking at your farm book…</Text>
+                  <Text style={styles.typingText}>{ui.typing}</Text>
                 </View>
               </View>
             ) : null
@@ -210,7 +213,7 @@ export default function AskMkulima() {
           <View style={styles.errorRow}>
             <Text style={styles.errorText}>{error}</Text>
             <Pressable onPress={() => void send(failedQuestion)} disabled={!failedQuestion || sending} style={styles.retry}>
-              <Text style={styles.retryText}>Try again</Text>
+              <Text style={styles.retryText}>{ui.retry}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -219,7 +222,7 @@ export default function AskMkulima() {
           <TextInput
             value={question}
             onChangeText={setQuestion}
-            placeholder="Ask about your farm"
+            placeholder={ui.placeholder}
             placeholderTextColor={colors.faint}
             multiline
             maxLength={400}
@@ -255,12 +258,14 @@ function MessageBubble({
   onToggleSource,
   onFollowUp,
   onConfirmDraft,
-  onDismissDraft
+  onDismissDraft,
+  ui
 }: {
   message: AskMkulimaMessage;
   last: boolean;
   sending: boolean;
   opened: boolean;
+  ui: (typeof ASK_UI)[keyof typeof ASK_UI];
   onToggleSource: () => void;
   onFollowUp: (text: string) => void;
   onConfirmDraft?: () => void;
@@ -282,10 +287,10 @@ function MessageBubble({
       <BrandMark size={28} />
       <View style={[styles.bubble, styles.assistantBubble]}>
         <Text style={styles.assistantText}>{message.text}</Text>
-        {localOnly ? <Text style={styles.fromPhone}>From this phone</Text> : null}
+        {localOnly ? <Text style={styles.fromPhone}>{ui.fromPhone}</Text> : null}
         {sources.length ? (
           <Pressable onPress={onToggleSource} accessibilityRole="button" style={styles.how}>
-            <Text style={styles.howText}>{opened ? 'Hide how I know' : 'How I know'}</Text>
+            <Text style={styles.howText}>{opened ? ui.hideHow : ui.how}</Text>
           </Pressable>
         ) : null}
         {opened ? (
@@ -300,10 +305,10 @@ function MessageBubble({
         {last && message.metadata?.draft && !sending && onConfirmDraft ? (
           <View style={styles.draftRow}>
             <Pressable onPress={onConfirmDraft} accessibilityRole="button" style={styles.saveDraft}>
-              <Text style={styles.saveDraftText}>Save to records</Text>
+              <Text style={styles.saveDraftText}>{ui.saveDraft}</Text>
             </Pressable>
             <Pressable onPress={onDismissDraft} accessibilityRole="button" style={styles.skipDraft}>
-              <Text style={styles.skipDraftText}>Not now</Text>
+              <Text style={styles.skipDraftText}>{ui.notNow}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -321,11 +326,12 @@ function MessageBubble({
   );
 }
 
-function integrationLabel(status: AskMkulimaIntegrationStatus | null) {
-  if (!status) return 'Opening…';
-  if (status.state === 'ready') return 'Live · your farm records';
-  if (status.state === 'auth_required') return 'On this phone · sign in for live';
-  return 'On this phone';
+function integrationLabel(status: AskMkulimaIntegrationStatus | null, language: 'en' | 'sw' = 'en') {
+  const ui = ASK_UI[language];
+  if (!status) return ui.opening;
+  if (status.state === 'ready') return ui.live;
+  if (status.state === 'auth_required') return ui.phoneSignIn;
+  return ui.onPhone;
 }
 
 const styles = StyleSheet.create({

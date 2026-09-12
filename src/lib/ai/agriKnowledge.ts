@@ -20,24 +20,25 @@ type KnowledgeDoc = {
   authorityTier: string;
   sourceUrl: string;
   farmerLine: string;
+  farmerLineSw?: string;
   body: string;
 };
 
 const docs = corpus as KnowledgeDoc[];
 
-export function searchAgriKnowledge(question: string, sector?: string, limit = 3): KnowledgeHit[] {
+export function searchAgriKnowledge(question: string, sector?: string, limit = 3, language: 'en' | 'sw' = 'en'): KnowledgeHit[] {
   const terms = question.toLocaleLowerCase().split(/[^a-z0-9']+/).filter((term) => term.length > 2);
   if (!terms.length) return [];
   return docs
     .map((doc) => {
-      const hay = `${doc.title} ${doc.farmerLine} ${doc.body} ${doc.topics.join(' ')} ${doc.valueChains.join(' ')}`.toLocaleLowerCase();
+      const hay = `${doc.title} ${doc.farmerLine} ${doc.farmerLineSw ?? ''} ${doc.body} ${doc.topics.join(' ')} ${doc.valueChains.join(' ')} wadudu ugonjwa mvua bei maziwa`.toLocaleLowerCase();
       let score = terms.reduce((sum, term) => sum + (hay.includes(term) ? 2 : 0), 0);
       if (sector && doc.valueChains.some((item) => item.toLocaleLowerCase() === sector.toLocaleLowerCase())) score += 3;
       score += Math.max(0, 7 - (doc.authorityTier.charCodeAt(0) - 64));
       return {
         id: doc.id,
         title: doc.title,
-        farmerLine: doc.farmerLine,
+        farmerLine: language === 'sw' && doc.farmerLineSw ? doc.farmerLineSw : doc.farmerLine,
         sourceOrganisation: doc.sourceOrganisation,
         authorityTier: doc.authorityTier,
         sourceUrl: doc.sourceUrl,

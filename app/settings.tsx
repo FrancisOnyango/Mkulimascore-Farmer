@@ -74,7 +74,7 @@ export default function Settings() {
   return (
     <AppShell>
       <H2>{strings.settings.title}</H2>
-      <Body style={styles.lead}>Device preferences for lower data use and language readiness.</Body>
+      <Body style={styles.lead}>{settings.language === 'sw' ? 'Chagua lugha ya simu na Uliza Mkulima. Kiswahili cha mkulima, si tafsiri rasmi ya kisheria.' : 'Choose the language for this phone and Ask Mkulima.'}</Body>
 
       <Card style={{ marginTop: spacing.xl }}>
         <View style={styles.row}>
@@ -101,7 +101,7 @@ export default function Settings() {
           <Pressable onPress={() => void changeLanguage('en')} style={[styles.choice, settings.language === 'en' && styles.choiceActive]}><Text style={styles.choiceText}>English</Text></Pressable>
           <Pressable onPress={() => void changeLanguage('sw')} style={[styles.choice, settings.language === 'sw' && styles.choiceActive]}><Text style={styles.choiceText}>Kiswahili</Text></Pressable>
         </View>
-        <DataRow label={strings.settings.kiswahiliReadiness} value="English and Kiswahili Ask Mkulima responses" last />
+        <DataRow label={strings.settings.kiswahiliReadiness} value={settings.language === 'sw' ? 'Uliza Mkulima majibu kwa Kiswahili na Kiingereza' : 'Ask Mkulima answers in English and Kiswahili'} last />
       </Card>
 
       <Card style={{ marginTop: spacing.md }}>

@@ -303,7 +303,8 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             "freshness": f"Tier {item.get('authorityTier')}",
             "limitation": "Published guidance, not a farm visit.",
         } for item in knowledge if isinstance(item, dict)]
-    text, llm = rewrite_answer(question, str(built.get("text") or ""), built, history)
+    language = str(payload.get("language") or (packet.get("farmer") or {}).get("language") or "en")
+    text, llm = rewrite_answer(question, str(built.get("text") or ""), built, history, language)
     return respond(200, ask_payload(
         str(built.get("intent") or "general"),
         text,

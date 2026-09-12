@@ -104,6 +104,25 @@ export const strings = {
 export const swahiliStrings = {
   ...strings,
   passport: 'Pasipoti ya Mkulima',
+  readinessReady: 'Tayari kwa tathmini',
+  readinessAttention: 'Inahitaji uangalizi',
+  tabs: {
+    home: 'Nyumbani',
+    farm: 'Shamba',
+    activity: 'Shughuli',
+    insights: 'Ufahamu',
+    profile: 'Wasifu'
+  },
+  identity: {
+    ...strings.identity,
+    title: 'Pasipoti hii ni ya nani?',
+    body: 'Maelezo ya kuanzia tu. Unaweza kuongeza mengine baadaye.',
+    name: 'Jina lako',
+    county: 'Kaunti',
+    language: 'Lugha unayopendelea',
+    yearOfBirth: 'Mwaka wa kuzaliwa, si lazima',
+    nationalId: 'Kitambulisho, si lazima'
+  },
   settings: {
     ...strings.settings,
     title: 'Mipangilio',
@@ -115,7 +134,8 @@ export const swahiliStrings = {
     apiBase: 'Msingi wa API',
     health: 'Afya ya seva',
     refreshBackend: 'Angalia seva tena'
-  }
+  },
+  disclaimer: 'Taarifa za shamba zinaweza kusaidia tathmini ya taasisi unapochagua kushiriki. Mkulima haahidi mkopo.'
 };
 
 export function getStrings(language: AppSettings['language']) {

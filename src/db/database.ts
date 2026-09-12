@@ -1530,6 +1530,9 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
   await saveOnboardingDraft(completed);
   await setMeta('onboarding_step', 'done');
   await setMeta('session_kind', 'self_onboarded');
+  if (draft.language === 'sw' || draft.language === 'en') {
+    await setLanguage(draft.language);
+  }
   return { passport, farm, enterprises };
 }
 

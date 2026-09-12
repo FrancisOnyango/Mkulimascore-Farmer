@@ -9,6 +9,7 @@ import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { routeForStep } from '@/lib/onboarding/routes';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, spacing } from '@/constants/theme';
 import { digitsOnly } from '@/lib/phone/kenya';
 import { isTrialPhone, TRIAL_OTP, trialAccessEnabled } from '@/lib/auth/trialCredentials';
@@ -56,7 +57,8 @@ export default function Otp() {
         />
       }
     >
-      <Caption>{trial ? 'Trial access' : 'One-time code'}</Caption>
+      <BrandMark size={40} />
+      <Caption style={{ marginTop: spacing.md }}>{trial ? 'Trial access' : 'One-time code'}</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{trial ? 'Enter the trial code' : 'Enter the code'}</H2>
       <Body style={styles.help}>
         {trial

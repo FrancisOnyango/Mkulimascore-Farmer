@@ -1,7 +1,10 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, radius, spacing } from '@/constants/theme';
+import { useAppData } from '@/context/AppDataContext';
+import { ASK_UI, localizeAskText } from '@/lib/i18n/askLanguage';
 
 export function AskBar({
   onPress,
@@ -10,19 +13,20 @@ export function AskBar({
   onPress: () => void;
   hint?: string;
 }) {
+  const language = useAppData().settings.language;
+  const title = ASK_UI[language].title;
+  const detail = localizeAskText(hint, language);
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Ask Mkulima"
+      accessibilityLabel={title}
       style={({ pressed }) => [styles.bar, pressed && { opacity: 0.9 }]}
     >
-      <View style={styles.icon}>
-        <Ionicons name="sparkles" size={18} color="#fff" />
-      </View>
+      <BrandMark size={36} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>Ask Mkulima</Text>
-        <Text style={styles.detail}>{hint}</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.detail}>{detail}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.faint} />
     </Pressable>
@@ -40,14 +44,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.brandDark,
-    alignItems: 'center',
-    justifyContent: 'center'
   },
   title: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   detail: { color: colors.muted, fontSize: 13, marginTop: 2 }

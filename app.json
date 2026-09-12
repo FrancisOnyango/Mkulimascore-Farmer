@@ -5,6 +5,11 @@
     "version": "0.1.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F5F3EA"
+    },
     "scheme": "mkulima",
     "userInterfaceStyle": "light",
     "android": {

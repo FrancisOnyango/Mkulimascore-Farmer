@@ -4,6 +4,7 @@ import { knowledgeLines, searchAgriKnowledge } from '@/lib/ai/agriKnowledge';
 import { detectAskDraft } from '@/lib/ai/askDraft';
 import { classifyAskRisk, highRiskAnswer } from '@/lib/ai/askPolicy';
 import { buildFarmerContextPacket } from '@/lib/ai/farmerContext';
+import { detectAskLanguage, localizeAskList, localizeAskText } from '@/lib/i18n/askLanguage';
 import { fieldConditionLine } from '@/lib/eo/farmerCopy';
 import { inferFarmCycle } from '@/lib/intelligence/cycle';
 import * as Crypto from 'expo-crypto';
@@ -43,21 +44,22 @@ type IntentResult = {
 class DemoAskMkulimaClient implements AskMkulimaClient {
   async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[] = []): Promise<AskMkulimaReply> {
     const scoped = scopeContext(context);
+    const language = detectAskLanguage(question, scoped.language);
     const normalized = resolveFollowUp(normalizeQuestion(question), history);
     if (mentionsRestrictedTopic(normalized)) {
-      return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, scoped.language);
+      return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, language);
     }
     const risk = classifyAskRisk(normalized);
     if (risk === 'high') {
-      const blocked = highRiskAnswer(normalized);
-      return makeReply(blocked.answer, blocked.intent, blocked.recommendations, blocked.followUps, [], ['High-risk advice needs a registered label or a veterinary officer.'], 'high', scoped.language, { risk });
+      const blocked = highRiskAnswer(normalized, language);
+      return makeReply(blocked.answer, blocked.intent, blocked.recommendations, blocked.followUps, [], ['High-risk advice needs a registered label or a veterinary officer.'], 'high', language, { risk });
     }
-    const draft = detectAskDraft(normalized, scoped);
+    const draft = detectAskDraft(normalized, scoped, language);
     if (draft) {
-      return makeReply(draft.prompt, 'draft', ['Nothing is saved until you confirm.'], ['How is my production?', 'What should I do first?'], [source('Conversation draft', '', 'Ask Mkulima may draft a record. It cannot save, update or delete farm evidence on its own.')], ['I will not change your farm book unless you confirm.'], 'high', scoped.language, { draft, risk });
+      return makeReply(draft.prompt, 'draft', ['Nothing is saved until you confirm.'], ['How is my production?', 'What should I do first?'], [source('Conversation draft', '', 'Ask Mkulima may draft a record. It cannot save, update or delete farm evidence on its own.')], ['I will not change your farm book unless you confirm.'], 'high', language, { draft, risk });
     }
     const result = routeQuestion(normalized, scoped);
-    return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, scoped.language, { risk: result.risk ?? risk, draft: result.draft });
+    return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, language, { risk: result.risk ?? risk, draft: result.draft });
   }
 }
 
@@ -519,7 +521,7 @@ function knowledgeAnswer(
     'yellow leaves', 'spots', 'scout', 'extension', 'kalro', 'pcpb', 'cabi'
   ])) return null;
   const enterprise = context.enterprises.find((item) => item.primary) ?? context.enterprises[0];
-  const hits = searchAgriKnowledge(question, enterprise?.sector);
+  const hits = searchAgriKnowledge(question, enterprise?.sector, 3, context.language);
   if (!hits.length) return null;
   hits.forEach((hit) => {
     sources.push(source(`${hit.sourceOrganisation} guidance`, '', `Tier ${hit.authorityTier}. Published guidance, not a farm visit. ${hit.sourceUrl}`));
@@ -620,24 +622,31 @@ function noData(intent: AskMkulimaIntent, answer: string, recommendations: strin
   return { intent, answer, recommendations, followUps, sources: [{ label: sourceLabel, freshness: 'Nothing saved yet', limitation: 'I will not invent missing farm data.' }] };
 }
 
-function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], _language: 'en' | 'sw' = 'en', extras?: { draft?: AskDraft; risk?: AskRisk }): AskMkulimaReply {
+function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], language: 'en' | 'sw' = 'en', extras?: { draft?: AskDraft; risk?: AskRisk }): AskMkulimaReply {
   const next = extras?.draft ? undefined : recommendations[0];
-  const text = weaveNext(answer, next);
+  const text = localizeAskText(weaveNext(answer, next), language);
+  const draft = extras?.draft && language === 'sw'
+    ? { ...extras.draft, prompt: localizeAskText(extras.draft.prompt, 'sw') }
+    : extras?.draft;
   return {
     text,
     metadata: {
       intent,
-      sources,
-      recommendations,
-      followUps,
-      limitations: [...limitations, localLimitation],
+      sources: sources.map((item) => ({
+        ...item,
+        label: localizeAskText(item.label, language),
+        limitation: item.limitation ? localizeAskText(item.limitation, language) : item.limitation
+      })),
+      recommendations: localizeAskList(recommendations, language),
+      followUps: localizeAskList(followUps, language),
+      limitations: localizeAskList([...limitations, localLimitation], language),
       localOnly: true,
       confidence: confidence ?? (sources.length >= 2 ? 'high' : sources.length === 1 ? 'medium' : 'low'),
       provider: 'local-free',
       model: 'mkulima-local-reasoner-v3',
       latencyMs: 0,
       risk: extras?.risk,
-      draft: extras?.draft
+      draft
     }
   };
 }
@@ -778,6 +787,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}`, 'X-Request-ID': requestId },
         body: JSON.stringify({
           question,
+          language: detectAskLanguage(question, context.language),
           context: projectSafeContext(context, question),
           history: history.slice(-8).map((item) => ({
             role: item.role === 'assistant' ? 'assistant' : 'farmer',

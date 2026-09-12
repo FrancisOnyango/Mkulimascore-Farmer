@@ -11,6 +11,7 @@
     "sourceUrl": "https://www.pcpb.go.ke/crops/",
     "language": "en",
     "farmerLine": "Kenyan crop-protection advice has to match a current PCPB registered use and the product label. Ask Mkulima will not name a spray, rate or chemical from memory.",
+    "farmerLineSw": "Ushauri wa kulinda mazao nchini Kenya unafaa kufuata matumizi yaliyosajiliwa na PCPB na lebo ya bidhaa. Uliza Mkulima hatataja dawa, kiasi, wala kemikali kutoka kumbukumbu.",
     "body": "The Pest Control Products Board publishes registered pest-control products and registered uses in Kenya. A chat answer must not invent a pesticide. Confirm the crop, pest, registration number and the approved label, including any re-entry or pre-harvest interval, with an extension officer or agrovet."
   },
   {
@@ -25,6 +26,7 @@
     "sourceUrl": "https://keep.kalro.org/",
     "language": "en",
     "farmerLine": "Kenyan maize guidance is to confirm that the topsoil is moist enough before planting. A rain forecast is not enough on its own.",
+    "farmerLineSw": "Ushauri wa mahindi nchini Kenya ni kuthibitisha udongo wa juu umepata unyevu wa kutosha kabla ya kupanda. Utabiri wa mvua peke yake hautoshi.",
     "body": "Location-specific maize advice in Kenya combines rainfall, soil and crop stage. Farmers should walk the field and check that the seedbed has received enough moisture. A phone forecast can change and does not replace what the soil is doing."
   },
   {
@@ -39,6 +41,7 @@
     "sourceUrl": "https://www.cabi.org/projects/plantwise/",
     "language": "en",
     "farmerLine": "Windowed leaves, frass in the funnel or chewed whorls can match fall armyworm and other pests. Scout several plants. Do not spray from a photo or a chat guess.",
+    "farmerLineSw": "Majani yenye madirisha, kinyesi kwenye funeli, au vichipukizi vilivyotafunwa vinaweza kufanana na fall armyworm au wadudu wengine. Kagua mimea kadhaa. Usinyunyizie kutokana na picha au dhana ya gumzo.",
     "body": "Plantwise-style diagnosis uses several plant parts and field history, not a single symptom. For maize, check the funnel, leaf windows and nearby plants. Management must follow a current Kenyan registered product if a chemical is considered. Ask Mkulima may help you look and locate help. It must not name a spray programme."
   },
   {
@@ -53,6 +56,7 @@
     "sourceUrl": "https://www.fao.org/animal-health/our-programmes/access-to-livestock-services/en",
     "language": "en",
     "farmerLine": "If an animal is off feed, suddenly weak, or in pain, contact a veterinary officer. Ask Mkulima will not give a medicine name or a dose.",
+    "farmerLineSw": "Mnyama akiacha kula, akiwa dhaifu ghafla, au akiuma, wasiliana na daktari wa mifugo. Uliza Mkulima hatatoa jina la dawa wala kipimo.",
     "body": "Quality preventive livestock care depends on access to veterinary and paraprofessional services. A phone assistant can help you notice warning signs and find a listed service near the farm. It must not replace a veterinarian or invent an antibiotic, wormer or injection."
   },
   {
@@ -67,6 +71,7 @@
     "sourceUrl": "https://kamis.kilimo.go.ke/",
     "language": "en",
     "farmerLine": "A Ministry reported price is what was last published for that market and crop. It is not what your buyer or agrovet must charge today.",
+    "farmerLineSw": "Bei ya Wizara iliyoripotiwa ni ile iliyochapishwa mwisho kwa soko na zao hilo. Si lazima ndiyo mnunuzi au agrovet atakayotoza leo.",
     "body": "Kenya's Agricultural Market Information System publishes commodity prices by market. Use them as a reference from the farm place. Confirm grade, quantity and the actual offer at the market. Transport cost is usually missing, so a higher distant price may not leave more net income."
   },
   {
@@ -81,6 +86,7 @@
     "sourceUrl": "https://keep.kalro.org/",
     "language": "en",
     "farmerLine": "Morning and evening litres should be saved with the date. Added by you is not the same as checked during a farm visit.",
+    "farmerLineSw": "Lita za asubuhi na jioni zihifadhiwe pamoja na tarehe. Umeongeza wewe si sawa na kukaguliwa wakati wa tembeleo la shamba.",
     "body": "Dairy decisions get better when morning and evening yields are written down. Ask Mkulima may draft a record from a conversation. It must wait for you to confirm before anything is saved. A later MkulimaCollect count can disagree with a self-reported herd size; both claims should stay visible."
   },
   {
@@ -95,6 +101,7 @@
     "sourceUrl": "https://kamis.kilimo.go.ke/",
     "language": "en",
     "farmerLine": "KAMIS reports crop and some input market figures. It does not replace the bag price at your agrovet. Ask Mkulima will not invent DAP, CAN or urea.",
+    "farmerLineSw": "KAMIS inaripoti bei za mazao na baadhi ya pembejeo. Haichukui nafasi ya bei ya gunia kwa agrovet yako. Uliza Mkulima hatatengeneza DAP, CAN wala urea.",
     "body": "If a Ministry fertilizer quote exists near the farm, say so and label it as reported, not a shop offer. If it does not exist, say it is missing. A listed agrovet is not a verified shop unless verification says so. Save the receipt you actually paid."
   },
   {
@@ -109,6 +116,7 @@
     "sourceUrl": "https://www.cabi.org/projects/plantwise/",
     "language": "en",
     "farmerLine": "Spots, yellowing or wilt on tomato can match more than one problem. A single photo is not a confirmed diagnosis.",
+    "farmerLineSw": "Madoa, kuwa njano, au kunyauka kwa nyanya kunaweza kufanana na matatizo zaidi ya moja. Picha moja si utambuzi wa hakika.",
     "body": "Practical plant-health work compares several plant parts and asks follow-up questions. Photograph the whole plant, both sides of an affected leaf, and the stem. Do not name a definite disease or a spray from one image."
   },
   {
@@ -123,6 +131,7 @@
     "sourceUrl": "https://keep.kalro.org/",
     "language": "en",
     "farmerLine": "A weaker western section on a mapped plot is a reason to walk the field. Satellite data alone cannot say if it is pest, soil, water or something else.",
+    "farmerLineSw": "Sehemu dhaifu upande wa magharibi wa shamba lililochorwa ni sababu ya kutembea shambani. Data ya setilaiti peke yake haiwezi kusema kama ni wadudu, udongo, maji, au jambo lingine.",
     "body": "Earth observation can show that vegetation is stable or uneven across a mapped farm. It must be combined with the farmer's activity and what they see. Ask Mkulima should not dump NDVI numbers or invent a diagnosis."
   },
   {
@@ -137,6 +146,7 @@
     "sourceUrl": "https://kilimo.go.ke/",
     "language": "en",
     "farmerLine": "For consequential advice, use county extension, a veterinary officer, or a listed service near the farm. A chat plan is not a farm visit.",
+    "farmerLineSw": "Kwa ushauri mzito, tumia ugani wa kaunti, daktari wa mifugo, au huduma iliyoandikwa karibu na shamba. Mpango wa gumzo si tembeleo la shamba.",
     "body": "Ask Mkulima can explain what is on the farmer's record, retrieve published guidance, and point to nearby listed places. It must not pretend to replace extension, a vet, or a PCPB label."
   }
 ]

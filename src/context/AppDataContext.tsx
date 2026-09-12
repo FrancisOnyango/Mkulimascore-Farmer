@@ -23,6 +23,7 @@ import type {
 } from '@/domain/types';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { createAskMkulimaClient } from '@/lib/ai/AskMkulimaService';
+import { localizeAskText } from '@/lib/i18n/askLanguage';
 import { createFarmerApi } from '@/lib/api/ApiClient';
 import { isLiveBackend } from '@/lib/api/mode';
 import { setStoredMsid } from '@/lib/session/sessionStore';
@@ -286,7 +287,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!enterpriseId) {
       await addAskMkulimaMessage({
         role: 'assistant',
-        text: 'I understood the figure, but I cannot save it until you add what you grow or keep.'
+        text: localizeAskText('I understood the figure, but I cannot save it until you add what you grow or keep.', data.settings.language)
       });
       await refresh();
       return;
@@ -312,25 +313,25 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     } else {
       await addAskMkulimaMessage({
         role: 'assistant',
-        text: 'I am missing a quantity or amount, so I did not save anything.'
+        text: localizeAskText('I am missing a quantity or amount, so I did not save anything.', data.settings.language)
       });
       await refresh();
       return;
     }
     await addAskMkulimaMessage({
       role: 'assistant',
-      text: 'Saved. Added by you — not checked during a farm visit. You can correct it from Activity if I misunderstood.'
+      text: localizeAskText('Saved. Added by you — not checked during a farm visit. You can correct it from Activity if I misunderstood.', data.settings.language)
     });
     await refresh();
-  }, [data.enterprises, refresh]);
+  }, [data.enterprises, data.settings.language, refresh]);
 
   const dismissAskDraft = useCallback(async () => {
     await addAskMkulimaMessage({
       role: 'assistant',
-      text: 'Not saved. Tell me again if you want to add it later.'
+      text: localizeAskText('Not saved. Tell me again if you want to add it later.', data.settings.language)
     });
     await refresh();
-  }, [refresh]);
+  }, [data.settings.language, refresh]);
 
   const deleteAskMessage = useCallback(async (id: string) => {
     await deleteAskMkulimaMessage(id);
