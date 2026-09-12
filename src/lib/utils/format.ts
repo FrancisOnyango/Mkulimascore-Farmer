@@ -7,6 +7,16 @@ export function formatNumber(value: number, maximumFractionDigits = 1) {
   return new Intl.NumberFormat('en-KE', { maximumFractionDigits }).format(value);
 }
 
+export function formatFarmArea(farm?: { reportedArea?: number | null; measuredArea?: number | null; areaUnit?: string } | null) {
+  if (!farm) return 'Farm area not added yet';
+  const value = farm.measuredArea != null && farm.measuredArea > 0 ? farm.measuredArea : farm.reportedArea;
+  if (value == null || !Number.isFinite(Number(value)) || Number(value) <= 0) return 'Farm area not added yet';
+  const amount = Number(value);
+  const hectares = farm.areaUnit === 'hectares';
+  const unit = hectares ? (amount === 1 ? 'hectare' : 'hectares') : amount === 1 ? 'acre' : 'acres';
+  return `${formatNumber(amount, 2)} ${unit}`;
+}
+
 export function formatKes(value: number) {
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',

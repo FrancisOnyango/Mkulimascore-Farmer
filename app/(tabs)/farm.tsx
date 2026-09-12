@@ -8,12 +8,12 @@ import { StatusPill } from '@/components/StatusPill';
 import { SectionHeader } from '@/components/SectionHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { AskBar } from '@/components/AskBar';
+import { FarmCard } from '@/components/FarmCard';
 import { NearbyPlaces } from '@/components/NearbyPlaces';
 import { useAppData } from '@/context/AppDataContext';
-import { FarmPlaceMap } from '@/components/FarmPlaceMap';
+import { formatFarmArea } from '@/lib/utils/format';
 import { listFarmerPlaces } from '@/db/database';
 import type { AgriculturalPlace, PlaceFilter } from '@/domain/places';
-import { PLACE_PIN_COLORS } from '@/domain/places';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
 import { listNearbyPlaces } from '@/lib/places/nearby';
 import { colors, spacing } from '@/constants/theme';
@@ -62,7 +62,7 @@ export default function Farms() {
     farmRecords.length === 0 ? 'Add a production record' : null
   ].filter(Boolean) as string[] : [];
   return (
-    <AppShell>
+    <AppShell ask={{ screen: 'farm', farmId: primaryFarm?.id }}>
       <H1>My Farm</H1>
       <View style={styles.titleRow}>
         <Body style={styles.lead}>Your farms, enterprises and land — kept as your record.</Body>
@@ -93,33 +93,18 @@ export default function Farms() {
       </View>
 
       {primaryFarm ? (
-        <Card style={styles.visualCard} onPress={() => router.push(`/farm/${primaryFarm.id}`)}>
-          {primaryFarm.latitude !== undefined && primaryFarm.longitude !== undefined ? (
-            <FarmPlaceMap
-              farm={primaryFarm}
-              height={200}
-              nearby={nearbyPlaces.slice(0, 6).map((place) => ({
-                name: place.name,
-                latitude: place.latitude,
-                longitude: place.longitude,
-                distanceLabel: place.distanceLabel,
-                color: PLACE_PIN_COLORS[place.category]
-              }))}
-            />
-          ) : (
-            <View style={styles.locationPanel}>
-              <H3>Mark this farm place</H3>
-              <Caption style={{ marginTop: spacing.sm }}>A GPS point unlocks weather and the nearest market. Draw or walk the edge when you can.</Caption>
-            </View>
-          )}
-          <View style={styles.visualFooter}>
-            <View>
-              <H3>{primaryFarm.name}</H3>
-              <Caption>{primaryFarm.location}</Caption>
-            </View>
-            <Body style={styles.visualArea}>{primaryFarm.measuredArea ?? primaryFarm.reportedArea} {primaryFarm.areaUnit}</Body>
-          </View>
-        </Card>
+        <View style={{ marginTop: spacing.xl }}>
+          <FarmCard
+            farm={primaryFarm}
+            enterprises={farmEnterprises}
+            seasonLabel={twin ? twin.cycle.label : undefined}
+            onPress={() => router.push(
+              primaryFarm.mapped || primaryFarm.latitude != null
+                ? (`/farm/${primaryFarm.id}` as never)
+                : ({ pathname: '/farm/map', params: { farmId: primaryFarm.id } } as never)
+            )}
+          />
+        </View>
       ) : null}
 
       {primaryFarm ? (
@@ -177,8 +162,8 @@ export default function Farms() {
                 <StatusPill label={farm.mapped ? 'Mapped' : 'Boundary later'} tone={farm.mapped ? 'verified' : 'neutral'} />
               </View>
               <View style={styles.metrics}>
-                <Metric label="Reported area" value={`${farm.reportedArea} ${farm.areaUnit}`} />
-                <Metric label="Measured" value={`${farm.measuredArea ?? '-'} ${farm.measuredArea ? farm.areaUnit : ''}`} />
+              <Metric label="Area" value={formatFarmArea(farm)} />
+              <Metric label="Boundary" value={farm.mapped ? 'Farmer mapped' : 'Not mapped yet'} />
               </View>
               <Caption style={{ marginTop: spacing.lg }}>{farm.enterprises.join(' / ')}</Caption>
             </Card>

@@ -32,7 +32,7 @@ export default function Consent() {
   return (
     <AppShell>
       <BrandMark size={48} />
-      <Caption style={{ marginTop: spacing.md }}>Step 1 of 6</Caption>
+      <Caption style={{ marginTop: spacing.md }}>Before we start</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{strings.consent.title}</H2>
       <Body style={styles.lead}>{strings.consent.body}</Body>
       <View style={styles.points}>

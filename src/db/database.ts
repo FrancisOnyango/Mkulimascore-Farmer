@@ -1421,7 +1421,7 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
         longitude: draft.longitude,
         reportedArea: Number.isFinite(area) && area > 0 ? area : 0,
         measuredArea: null,
-        areaUnit: 'acres',
+        areaUnit: draft.areaUnit === 'hectares' ? 'hectares' : 'acres',
         mapped: false,
         verification: 'reported',
         enterprises: draft.sectors ?? [],

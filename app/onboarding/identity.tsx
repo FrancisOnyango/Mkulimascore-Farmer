@@ -27,10 +27,6 @@ export default function Identity() {
       setError('Enter the name this Passport should use.');
       return;
     }
-    if (!draft.county) {
-      setError('Choose your county.');
-      return;
-    }
     const next: OnboardingDraft = { ...draft, step: 'farm', language: draft.language ?? 'en' };
     await FarmerAppService.saveOnboardingDraft(next);
     router.replace('/onboarding/farm');
@@ -38,7 +34,7 @@ export default function Identity() {
 
   return (
     <AppShell>
-      <Caption>Step 2 of 6</Caption>
+      <Caption>Step 1 of 3</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{strings.identity.title}</H2>
       <Body style={styles.lead}>{strings.identity.body}</Body>
       <Input
@@ -61,7 +57,7 @@ export default function Identity() {
         }}
         placeholder="Start typing Nyeri, Kiambu..."
         autoComplete="off"
-        hint="All 47 counties. Tap the match."
+        hint="Optional. We can also read it from the farm place next."
       />
       {showCounties ? (
         <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">

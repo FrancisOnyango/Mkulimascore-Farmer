@@ -20,7 +20,7 @@ export default function Activity() {
   const unsynced = outbox.filter((item) => item.state !== 'SYNCED').length;
 
   return (
-    <AppShell>
+    <AppShell ask={{ screen: 'records', farmId: selected?.farmId }}>
       <View style={styles.header}>
         <View>
           <H1>Farm diary</H1>

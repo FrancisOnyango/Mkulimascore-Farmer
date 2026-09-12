@@ -1,17 +1,21 @@
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AskFab } from '@/components/AskFab';
 import { colors, radius, spacing } from '@/constants/theme';
 import { useAppData } from '@/context/AppDataContext';
+import type { AskScreen } from '@/domain/ask';
 
 export function AppShell({
   children,
   scroll = true,
-  contentStyle
+  contentStyle,
+  ask
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   contentStyle?: ViewStyle;
+  ask?: { screen: AskScreen; farmId?: string };
 }) {
   const { refreshing, refreshError, offline, lastUpdatedAt, lastSyncAt, refresh } = useAppData();
   const content = <View style={[styles.content, contentStyle]}>{children}</View>;
@@ -47,6 +51,7 @@ export function AppShell({
       ) : (
         content
       )}
+      {ask ? <AskFab screen={ask.screen} farmId={ask.farmId} /> : null}
     </SafeAreaView>
   );
 }

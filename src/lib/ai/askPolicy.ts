@@ -62,7 +62,7 @@ export function startersForScreen(screen?: AskScreen | null, language: AskLang =
     : screen === 'records'
       ? ['How is my production?', 'What have I spent?', 'What record is still needed?']
     : screen === 'profile'
-      ? ['What should I do first?', 'Why is my profile incomplete?', 'What is still waiting to send?']
+      ? ['How is my Passport looking?', 'What can I improve?', 'What is still waiting to send?']
     : [];
   return localizeAskList(en, language);
 }

@@ -24,10 +24,10 @@ export default function OnboardingComplete() {
       <BrandMark size={56} />
       <Caption style={{ marginTop: spacing.md }}>Mkulima Passport</Caption>
       <H1 style={{ marginTop: spacing.sm }}>Your Mkulima Passport is ready.</H1>
-      <Body style={styles.lead}>You can keep improving your profile as your farm changes.</Body>
+      <Body style={styles.lead}>You can keep strengthening your farm profile over time.</Body>
       <View style={styles.list}>
-        <Done label="Farmer identity established" detail={passport?.displayName || 'Saved'} />
-        <Done label={farms[0] ? 'Farm added' : 'Farm can be added later'} detail={farms[0]?.name ?? 'Add when you are ready'} />
+        <Done label="Farm created" detail={farms[0]?.name || passport?.displayName || 'Saved'} />
+        <Done label={farms[0]?.location ? 'Location added' : 'Location can be added later'} detail={farms[0]?.location || 'Add when you are there'} />
         {enterprises.map((enterprise) => (
           <Done key={enterprise.id} label={`${enterprise.sector} enterprise added`} detail={enterprise.summary} />
         ))}
@@ -36,7 +36,7 @@ export default function OnboardingComplete() {
       <PrimaryButton
         label="Go to my farm"
         disabled={!ready}
-        onPress={() => router.replace('/(tabs)/home')}
+        onPress={() => router.replace('/(tabs)/farm')}
       />
     </AppShell>
   );

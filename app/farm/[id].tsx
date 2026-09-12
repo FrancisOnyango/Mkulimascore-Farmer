@@ -18,7 +18,7 @@ import { locationEvidence } from '@/lib/geo/locationLevel';
 import { advancedFieldInsights } from '@/lib/eo/farmerCopy';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
 import { colors, radius, spacing } from '@/constants/theme';
-import { formatDate, freshnessLabel } from '@/lib/utils/format';
+import { formatDate, formatFarmArea, freshnessLabel } from '@/lib/utils/format';
 
 export default function FarmDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -125,8 +125,8 @@ export default function FarmDetail() {
       </Card>
 
       <Card style={{ marginTop: spacing.md }}>
-        <Metric label="Area you entered" value={farm.reportedArea ? `${farm.reportedArea} ${farm.areaUnit}` : 'Not set'} />
-        <Metric label="Measured area" value={farm.measuredArea ? `${farm.measuredArea} ${farm.areaUnit}` : 'Not measured yet'} />
+        <Metric label="Area you entered" value={farm.reportedArea ? formatFarmArea({ ...farm, measuredArea: null }) : 'Farm area not added yet'} />
+        <Metric label="Measured area" value={farm.measuredArea ? formatFarmArea({ ...farm, reportedArea: 0 }) : 'Not measured yet'} />
         <Metric label="Boundary" value={farm.mapped ? boundarySourceLabel(farm.boundarySource) : 'Detailed boundary not yet mapped'} />
         <Metric label="Enterprises" value={farm.enterprises.join(' · ') || 'None yet'} last />
       </Card>

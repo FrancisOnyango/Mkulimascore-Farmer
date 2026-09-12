@@ -32,7 +32,7 @@ export default function Profile() {
   const connected = consents.filter((item) => item.status === 'active' || item.status === 'pending');
 
   return (
-    <AppShell>
+    <AppShell ask={{ screen: 'profile' }}>
       <View style={styles.hero}>
         <BrandMark size={48} />
         <View style={{ flex: 1 }}>
@@ -41,7 +41,7 @@ export default function Profile() {
         </View>
       </View>
       <View style={{ marginTop: spacing.lg }}>
-        <AskBar hint="What should I do first?" onPress={() => router.push({ pathname: '/ask', params: { screen: 'profile' } })} />
+        <AskBar hint="How is my Passport looking?" onPress={() => router.push({ pathname: '/ask', params: { screen: 'profile' } })} />
       </View>
 
       <FarmerSection title="Mkulima Passport" action="Open" onAction={() => router.push('/passport')}>

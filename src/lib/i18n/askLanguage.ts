@@ -60,6 +60,8 @@ const PHRASES: Array<[string, string]> = [
   ['Where should I sell near this farm?', 'Niuzie wapi karibu na shamba hili?'],
   ['Where can I sell or buy near this farm?', 'Naweza kuuza au kununua wapi karibu na shamba hili?'],
   ['What should I do first?', 'Nifanye nini kwanza?'],
+  ['How is my Passport looking?', 'Pasipoti yangu iko vipi?'],
+  ['What can I improve?', 'Naweza kuboresha nini?'],
   ['How is the weather for my farm?', 'Hali ya hewa ya shamba langu iko vipi?'],
   ['What is the latest price near me?', 'Bei ya karibu iliyoripotiwa ni ipi?'],
   ['How is my production?', 'Uzalishaji wangu uko vipi?'],
@@ -111,7 +113,7 @@ export const ASK_UI = {
   en: {
     title: 'Ask Mkulima',
     emptyTitle: 'Ask about this farm',
-    emptyBody: 'I use what you saved, then weather, prices or places when those tools have data. I will not invent a price, a spray, or a loan.',
+    emptyBody: 'Talk the way you would to a neighbour. I will use what you saved, then weather, prices or places when those tools have data. I will not invent a price, a spray, or a loan.',
     placeholder: 'Ask about your farm',
     how: 'How I know',
     hideHow: 'Hide how I know',
@@ -136,7 +138,7 @@ export const ASK_UI = {
   sw: {
     title: 'Uliza Mkulima',
     emptyTitle: 'Uliza kuhusu shamba hili',
-    emptyBody: 'Natumia ulichohifadhi, kisha hali ya hewa, bei au sehemu zilizoandikwa. Sitatengeneza bei, dawa, wala mkopo.',
+    emptyBody: 'Ongea kama unavyoongea na jirani. Natumia ulichohifadhi, kisha hali ya hewa, bei au sehemu zilizoandikwa. Sitatengeneza bei, dawa, wala mkopo.',
     placeholder: 'Uliza kuhusu shamba lako',
     how: 'Ninaajuaje',
     hideHow: 'Ficha jinsi ninavyojua',

@@ -26,7 +26,7 @@ export interface AskMkulimaClient {
   ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[]): Promise<AskMkulimaReply>;
 }
 
-const refusal = 'I can talk about your Passport, records and next step. I cannot promise a loan or show a score.';
+const refusal = 'I can talk about your farm, records and Passport. I cannot promise a loan or show a score.';
 const localLimitation = 'This uses what is saved on this phone. It is not a farm visit, a price promise, or a loan decision.';
 
 type IntentResult = {
@@ -47,7 +47,7 @@ class DemoAskMkulimaClient implements AskMkulimaClient {
     const language = detectAskLanguage(question, scoped.language);
     const normalized = resolveFollowUp(normalizeQuestion(question), history);
     if (mentionsRestrictedTopic(normalized)) {
-      return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, language);
+      return makeReply(refusal, 'general', [], ['How is the weather for my farm?', 'How is my production?'], [], ['Loan and score rules stay with the institution.'], undefined, language);
     }
     const risk = classifyAskRisk(normalized);
     if (risk === 'high') {
@@ -56,7 +56,7 @@ class DemoAskMkulimaClient implements AskMkulimaClient {
     }
     const draft = detectAskDraft(normalized, scoped, language);
     if (draft) {
-      return makeReply(draft.prompt, 'draft', ['Nothing is saved until you confirm.'], ['How is my production?', 'What should I do first?'], [source('Conversation draft', '', 'Ask Mkulima may draft a record. It cannot save, update or delete farm evidence on its own.')], ['I will not change your farm book unless you confirm.'], 'high', language, { draft, risk });
+      return makeReply(draft.prompt, 'draft', ['Nothing is saved until you confirm.'], ['How is my production?'], [source('Conversation draft', '', 'Ask Mkulima may draft a record. It cannot save, update or delete farm evidence on its own.')], ['I will not change your farm book unless you confirm.'], 'high', language, { draft, risk });
     }
     const result = routeQuestion(normalized, scoped);
     return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, language, { risk: result.risk ?? risk, draft: result.draft });
@@ -85,7 +85,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         ? `Based on your records, the profile still needs you to ${gaps.join(', then ')}. I will not invent points or say a change will raise a score.`
         : 'Based on your records, the main farm facts are in place. Keep production current. I will not invent a score improvement.',
       recommendations: gaps.length ? [`Start with: ${gaps[0]}.`] : ['Keep the latest milk, harvest or sale current.'],
-      followUps: ['Why is my profile incomplete?', 'How do I map my farm?'],
+      followUps: ['How is my production?', 'How is the weather for my farm?'],
       sources,
       risk: 'low'
     };
@@ -136,9 +136,9 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   if (isGreeting(question) && !hasAny(question, ['weather', 'rain', 'price', 'bei', 'fertil', 'mbolea'])) {
     return {
       intent: 'chat',
-      answer: `Habari${talk.firstName ? `, ${talk.firstName}` : ''}. I am looking at ${talk.farmLine}. ${talk.oneLiner} What do you want to know — weather, a nearby price, or what to update?`,
+      answer: `Habari${talk.firstName ? `, ${talk.firstName}` : ''}. I am here for ${talk.farmLine}. ${talk.oneLiner} Ask me anything about the farm — I will answer from what we actually have.`,
       recommendations: [],
-      followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'What fertilizer cost have I saved?'],
+      followUps: ['How is the weather for my farm?', 'What is the latest price near me?'],
       sources: talk.sources
     };
   }
@@ -146,9 +146,9 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   if (isThanks(question)) {
     return {
       intent: 'chat',
-      answer: `You are welcome${talk.firstName ? `, ${talk.firstName}` : ''}. I am still here for ${farmName}.`,
+      answer: `Karibu${talk.firstName ? `, ${talk.firstName}` : ''}. I am still here if something else comes up on ${farmName}.`,
       recommendations: [],
-      followUps: ['How is the weather for my farm?', 'What should I do first?'],
+      followUps: ['How is the weather for my farm?', 'How is my production?'],
       sources: talk.sources
     };
   }
@@ -156,9 +156,9 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   if (hasAny(question, ['who are you', 'what are you', 'what can you', 'what do you do', 'help me ask', 'nani wewe'])) {
     return {
       intent: 'chat',
-      answer: `I am Ask Mkulima. I use the farm book for ${talk.farmLine}. I can talk about weather, nearby listed places, reported produce prices, what you recorded, and what to do next. I will not invent a fertilizer quote or promise a loan.`,
+      answer: `I am Ask Mkulima — a neighbour in the phone for ${talk.farmLine}. We can talk about weather, nearby listed places, reported produce prices, or what you already recorded. I will not invent a fertilizer quote or promise a loan.`,
       recommendations: [],
-      followUps: ['Where can I sell near my farm?', 'How is the weather for my farm?'],
+      followUps: ['How is the weather for my farm?', 'Where can I sell near my farm?'],
       sources: talk.sources
     };
   }
@@ -182,7 +182,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
             ? 'Protect harvested produce and finish urgent field work before the rain.'
             : 'Look at the soil before you spray or apply inputs.'
         ],
-        followUps: nextDays.length ? ['Show the next 3 days', 'How is my production?'] : ['How is my production?', 'What should I do first?'],
+        followUps: nextDays.length ? ['Show the next 3 days', 'How is my production?'] : ['How is my production?', 'What is the latest price near me?'],
         sources
       };
     }
@@ -210,11 +210,11 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         intent: 'alerts',
         answer: `${alert.title}. ${alert.detail}${alert.relatedEntityLabel ? ` This is about ${alert.relatedEntityLabel}.` : ''} Check the farm before you change a plan.`,
         recommendations: ['Open the related record if you need the date or amount.'],
-        followUps: ['What should I do first?', 'How is the weather for my farm?'],
+        followUps: ['How is the weather for my farm?', 'How is my production?'],
         sources
       };
     }
-    return noData('alerts', 'No farm alert is waiting on this phone.', ['Add a recent production or cost so there is something to watch.'], ['What should I do first?'], 'Farm alerts');
+    return noData('alerts', 'No farm alert is waiting on this phone.', [], ['How is the weather for my farm?', 'How is my production?'], 'Farm alerts');
   }
 
   if (hasAny(question, ['what did i sell', 'sold last', 'sales last', 'last month sale', 'niliuza', 'mauzo yangu'])) {
@@ -230,7 +230,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         intent: 'production',
         answer: `In the last month you saved ${recent.length} sale${recent.length === 1 ? '' : 's'}: ${recent.slice(0, 3).map((item) => item.detail || item.title).join('; ')}. Add any sale that is missing.`,
         recommendations: ['Open Activity if a sale is missing.'],
-        followUps: ['What is the latest price near me?', 'What should I do first?'],
+        followUps: ['What is the latest price near me?', 'How is my production?'],
         sources
       };
     }
@@ -245,7 +245,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         intent: 'production',
         answer: `Based on the diary you added, the last update I can see is “${hit.title}” on ${hit.occurredAt.slice(0, 10)}. ${hit.detail} Added by you — not checked during a farm visit.`,
         recommendations: ['Record today’s milk or herd from Activity.'],
-        followUps: ['What should I do first?', 'Why is my profile incomplete?'],
+        followUps: ['How is my production?', 'How is the weather for my farm?'],
         sources
       };
     }
@@ -261,7 +261,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         ? `Based on your records, your profile still needs you to ${gaps.join(', then ')}. None of this promises a loan or changes a score.`
         : 'Based on your records, the main farm facts are in place. Keep production current so the record stays useful.',
       recommendations: gaps.length ? [`Start with: ${gaps[0]}.`] : ['Keep the latest milk, harvest or sale current.'],
-      followUps: ['What should I do first?', 'How do I map my farm?'],
+      followUps: ['How large is this farm?', 'How is the weather for my farm?'],
       sources
     };
   }
@@ -336,7 +336,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       recommendations: costRecords.length
         ? ['Add any missing feed, labour, seed or transport with the date and amount.']
         : ['Add the latest farm cost with amount, date and enterprise.'],
-      followUps: ['How is my production?', 'What should I do first?'],
+      followUps: ['How is my production?', 'How is the weather for my farm?'],
       sources
     };
   }
@@ -370,7 +370,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       recommendations: [
         openRequest ? 'Check who is asking and why before you share.' : 'Start with the newest record that explains production, a sale or a cost.'
       ],
-      followUps: ['What should I do first?', 'What does verified mean?'],
+      followUps: ['How is my production?', 'What does verified mean?'],
       sources
     };
   }
@@ -386,7 +386,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
           ? 'Your saved farm places are mapped. Reported area and measured area stay separate.'
           : 'No farm is saved yet, so there is no place to map.',
       recommendations: unmapped ? ['Open Farm place and walk or draw the edge when you are there.'] : ['Open the map if the shape does not match the farm.'],
-      followUps: ['What should I do first?', 'How is the weather for my farm?'],
+      followUps: ['How is the weather for my farm?', 'How is my production?'],
       sources
     };
   }
@@ -403,7 +403,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
       recommendations: passport
         ? [openConsents.length ? `Review ${openConsents.length} permission${openConsents.length === 1 ? '' : 's'} before you share.` : 'Review permissions before you share the Passport.']
         : ['Add your name and a farm to start the Passport.'],
-      followUps: ['Why is my profile incomplete?', 'What should I do first?'],
+      followUps: ['How is my production?', 'How is the weather for my farm?'],
       sources
     };
   }
@@ -416,12 +416,12 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         ? `${pending} update${pending === 1 ? '' : 's'} ${pending === 1 ? 'is' : 'are'} waiting on this phone. ${pending === 1 ? 'It' : 'They'} will send when you have a signal.`
         : 'Nothing is waiting to send from this phone.',
       recommendations: pending ? ['Open Sync when you have a signal. Do not add the same record twice.'] : ['Keep the original note until you see it sent.'],
-      followUps: ['What should I do first?', 'How is my production?'],
+      followUps: ['How is the weather for my farm?', 'How is my production?'],
       sources
     };
   }
 
-  if (hasAny(question, ['next', 'action', 'do first', 'important', 'recommend', 'update first', 'help', 'nini nifanye', 'hatua', 'muhimu'])) {
+  if (hasAny(question, ['what should i do first', 'what do i do first', 'what should i update', 'update first', 'nini nifanye kwanza', 'nifanye nini kwanza', 'what is the next step'])) {
     const next = attention?.action ?? attention?.explanation ?? (openRequest ? `review ${openRequest.items[0] ?? 'the open request'}` : context.farms.some((farm) => !farm.mapped) ? 'map the farm place' : context.records.length === 0 ? 'add a recent farm record' : 'record the latest production or cost');
     if (attention) sources.push(source(attention.sourceLabel, attention.updatedAt, attention.limitation));
     return {
@@ -435,9 +435,9 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
 
   return {
     intent: 'chat',
-    answer: `${talk.firstName ? `${talk.firstName}, I ` : 'I '}heard you. For ${talk.farmLine}: ${talk.oneLiner} Ask me the weather, a nearby produce price, an input you saved, or what to do next. If it is not in this farm book, I will say so rather than guess.`,
+    answer: `${talk.firstName ? `${talk.firstName}, I ` : 'I '}heard you. ${talk.oneLiner} Tell me a bit more — weather, a price, milk, or what you saw on the farm — and I will look it up in this farm book. If it is not there, I will say so rather than guess.`,
     recommendations: [],
-    followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'What should I do first?'],
+    followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'How is my production?'],
     sources: talk.sources
   };
 }
@@ -623,8 +623,7 @@ function noData(intent: AskMkulimaIntent, answer: string, recommendations: strin
 }
 
 function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], language: 'en' | 'sw' = 'en', extras?: { draft?: AskDraft; risk?: AskRisk }): AskMkulimaReply {
-  const next = extras?.draft ? undefined : recommendations[0];
-  const text = localizeAskText(weaveNext(answer, next), language);
+  const text = localizeAskText(answer.replace(/\s+/g, ' ').trim(), language);
   const draft = extras?.draft && language === 'sw'
     ? { ...extras.draft, prompt: localizeAskText(extras.draft.prompt, 'sw') }
     : extras?.draft;
@@ -649,15 +648,6 @@ function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: st
       draft
     }
   };
-}
-
-function weaveNext(answer: string, next?: string) {
-  const clean = answer.replace(/\s+/g, ' ').trim();
-  if (!next) return clean;
-  const clipped = next.replace(/\s+/g, ' ').trim();
-  if (!clipped) return clean;
-  if (clean.toLocaleLowerCase().includes(clipped.slice(0, Math.min(24, clipped.length)).toLocaleLowerCase())) return clean;
-  return `${clean} ${clipped.endsWith('.') ? clipped : `${clipped}.`}`;
 }
 
 function source(label: string, updatedAt: string, limitation?: string): AskMkulimaSource {
@@ -769,7 +759,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
 
   async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[]): Promise<AskMkulimaReply> {
     if (mentionsRestrictedTopic(normalizeQuestion(question))) {
-      return makeReply(refusal, 'general', [], ['What should I do first?'], [], ['Loan and score rules stay with the institution.'], undefined, context.language);
+      return makeReply(refusal, 'general', [], ['How is the weather for my farm?', 'How is my production?'], [], ['Loan and score rules stay with the institution.'], undefined, context.language);
     }
     const draft = await this.fallback.ask(question, context, history);
     if (draft.metadata.risk === 'high' || draft.metadata.draft || draft.metadata.intent === 'draft') return draft;

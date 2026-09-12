@@ -19,7 +19,7 @@ export default function Insights() {
   const selectedFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
 
   return (
-    <AppShell>
+    <AppShell ask={{ screen: 'insights' }}>
       <H1>Insights</H1>
       <Caption style={{ marginTop: spacing.sm }}>Weather, markets and profile — all from the farm, not a dashboard.</Caption>
       <View style={{ marginTop: spacing.lg }}>

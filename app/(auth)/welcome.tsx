@@ -46,91 +46,78 @@ export default function Welcome() {
   }
 
   return (
-    <AuthShell contentStyle={styles.screen}>
-      <View style={styles.hero}>
-        <BrandMark size={64} light />
+    <AuthShell>
+      <View style={styles.identity}>
+        <BrandMark size={72} />
         <Text style={styles.kenya}>{strings.welcome.kenya}</Text>
         <Text style={styles.brand}>{strings.welcome.brand}</Text>
-        <Text style={styles.brandLine}>{strings.welcome.brandLine}</Text>
       </View>
 
-      <View style={styles.sheet}>
-        <Text style={styles.headline}>{strings.welcome.line1}</Text>
-        <Text style={styles.headline}>{strings.welcome.line2}</Text>
-        <Text style={styles.headline}>{strings.welcome.line3}</Text>
-        <Body style={styles.support}>{strings.welcome.support}</Body>
+      <Text style={styles.headline}>{strings.welcome.line1}</Text>
+      <Text style={styles.headline}>{strings.welcome.line2}</Text>
+      <Text style={styles.headline}>{strings.welcome.line3}</Text>
+      <Body style={styles.support}>{strings.welcome.support}</Body>
 
-        <View style={styles.trust}>
-          <TrustPoint label={strings.welcome.saved} />
-          <TrustPoint label={strings.welcome.control} />
-          <TrustPoint label={strings.welcome.noLoan} />
-        </View>
+      <View style={styles.benefits}>
+        <Benefit label={strings.welcome.saved} />
+        <Benefit label={strings.welcome.control} />
+        <Benefit label={strings.welcome.noLoan} />
+      </View>
 
-        <View style={styles.actions}>
-          <PrimaryButton label={strings.welcome.start} onPress={() => void start('new')} />
-          <PrimaryButton label={strings.welcome.signIn} variant="secondary" onPress={() => void start('returning')} />
-        </View>
+      <View style={styles.actions}>
+        <PrimaryButton label={strings.welcome.start} onPress={() => void start('new')} />
+        <PrimaryButton label={strings.welcome.signIn} variant="secondary" onPress={() => void start('returning')} />
+      </View>
 
-        {showTrial ? (
-          <View style={styles.trial}>
-            <Caption style={styles.trialEyebrow}>{strings.welcome.trialTitle}</Caption>
-            <Text style={styles.trialBody}>{strings.welcome.trialBody}</Text>
-            <View style={styles.creds}>
-              <View style={styles.cred}>
-                <Text style={styles.credLabel}>{strings.welcome.trialPhone}</Text>
-                <Text style={styles.credValue}>{TRIAL_PHONE_DISPLAY}</Text>
-              </View>
-              <View style={styles.cred}>
-                <Text style={styles.credLabel}>{strings.welcome.trialCode}</Text>
-                <Text style={styles.credValue}>{TRIAL_OTP}</Text>
-              </View>
+      {showTrial ? (
+        <View style={styles.trial}>
+          <Caption style={styles.trialEyebrow}>{strings.welcome.trialTitle}</Caption>
+          <Text style={styles.trialBody}>{strings.welcome.trialBody}</Text>
+          <View style={styles.creds}>
+            <View style={styles.cred}>
+              <Text style={styles.credLabel}>{strings.welcome.trialPhone}</Text>
+              <Text style={styles.credValue}>{TRIAL_PHONE_DISPLAY}</Text>
             </View>
-            <Pressable
-              onPress={() => void openSampleFarm()}
-              disabled={openingTrial}
-              accessibilityRole="button"
-              accessibilityLabel={strings.welcome.trialAction}
-              style={({ pressed }) => [styles.trialButton, pressed && { opacity: 0.85 }, openingTrial && { opacity: 0.5 }]}
-            >
-              <Text style={styles.trialButtonText}>{openingTrial ? 'Opening sample farm...' : strings.welcome.trialAction}</Text>
-            </Pressable>
-            {trialError ? <Text style={styles.trialError}>{trialError}</Text> : null}
+            <View style={styles.cred}>
+              <Text style={styles.credLabel}>{strings.welcome.trialCode}</Text>
+              <Text style={styles.credValue}>{TRIAL_OTP}</Text>
+            </View>
           </View>
-        ) : null}
-      </View>
+          <Pressable
+            onPress={() => void openSampleFarm()}
+            disabled={openingTrial}
+            accessibilityRole="button"
+            accessibilityLabel={strings.welcome.trialAction}
+            style={({ pressed }) => [styles.trialButton, pressed && { opacity: 0.85 }, openingTrial && { opacity: 0.5 }]}
+          >
+            <Text style={styles.trialButtonText}>{openingTrial ? 'Opening sample farm...' : strings.welcome.trialAction}</Text>
+          </Pressable>
+          {trialError ? <Text style={styles.trialError}>{trialError}</Text> : null}
+        </View>
+      ) : null}
     </AuthShell>
   );
 }
 
-function TrustPoint({ label }: { label: string }) {
+function Benefit({ label }: { label: string }) {
   return (
-    <View style={styles.trustItem}>
-      <View style={styles.trustDot} />
-      <Text style={styles.trustText}>{label}</Text>
+    <View style={styles.benefit}>
+      <View style={styles.benefitDot} />
+      <Text style={styles.benefitText}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { paddingHorizontal: 0, paddingTop: 0 },
-  hero: {
-    backgroundColor: colors.brandDark,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xxxl,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28
-  },
-  kenya: { color: '#C9E6D1', fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', marginTop: spacing.lg },
-  brand: { color: '#fff', fontSize: 36, lineHeight: 42, fontWeight: '800', marginTop: spacing.xs },
-  brandLine: { color: '#D7E8DC', fontSize: 16, lineHeight: 22, marginTop: spacing.sm, maxWidth: 280 },
-  sheet: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, paddingBottom: spacing.xl },
+  identity: { alignItems: 'center', marginBottom: spacing.xxl, marginTop: spacing.lg },
+  kenya: { color: colors.brand, fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', marginTop: spacing.md },
+  brand: { color: colors.ink, fontSize: 32, lineHeight: 38, fontWeight: '800', marginTop: 4 },
   headline: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: colors.ink },
   support: { marginTop: spacing.md, color: colors.muted, maxWidth: 360 },
-  trust: { marginTop: spacing.xl, gap: spacing.sm },
-  trustItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  trustDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
-  trustText: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  benefits: { marginTop: spacing.xl, gap: spacing.sm },
+  benefit: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  benefitDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand },
+  benefitText: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },
   actions: { marginTop: spacing.xxl, gap: spacing.sm },
   trial: {
     marginTop: spacing.xl,

@@ -121,7 +121,7 @@ export default function Home() {
 
       {brief.nextAction ? (
         <View style={styles.block}>
-          <Text style={styles.kicker}>Do this next</Text>
+          <Text style={styles.kicker}>If you have a minute</Text>
           <Text style={styles.title}>{brief.nextAction.title}</Text>
           <Text style={styles.body}>{brief.nextAction.why}</Text>
           <View style={{ marginTop: spacing.md }}>
@@ -130,9 +130,22 @@ export default function Home() {
         </View>
       ) : null}
 
+      {brief.twin.market?.priceLabel ? (
+        <Pressable onPress={() => router.push('/insights/markets')} style={styles.block} accessibilityRole="button">
+          <Text style={styles.kicker}>Market near you</Text>
+          <Text style={styles.title}>{brief.twin.market.name}</Text>
+          <Text style={styles.body}>
+            {brief.twin.market.distanceLabel}
+            {brief.twin.market.commodity ? ` · ${brief.twin.market.commodity}` : ''}
+            {` · ${brief.twin.market.priceLabel}. ${brief.twin.market.freshnessLabel}.`}
+          </Text>
+          <Text style={styles.link}>View markets</Text>
+        </Pressable>
+      ) : null}
+
       {brief.recent.length ? (
         <View style={styles.recent}>
-          <Text style={styles.kicker}>Already noted</Text>
+          <Text style={styles.kicker}>Recent</Text>
           {brief.recent.map((item) => (
             <Text key={item.id} style={styles.recentItem}>✓  {item.title}</Text>
           ))}
@@ -172,5 +185,6 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 20, fontWeight: '800', marginTop: spacing.xs },
   body: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },
   recent: { marginTop: spacing.sm, marginBottom: spacing.xl },
-  recentItem: { color: colors.text, fontSize: 14, marginTop: spacing.sm }
+  recentItem: { color: colors.text, fontSize: 14, marginTop: spacing.sm },
+  link: { color: colors.brandDark, fontWeight: '800', marginTop: spacing.md }
 });

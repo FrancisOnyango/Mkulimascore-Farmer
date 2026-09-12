@@ -81,6 +81,7 @@ export interface OnboardingDraft {
   latitude?: number;
   longitude?: number;
   reportedArea?: string;
+  areaUnit?: 'acres' | 'hectares';
   tenure?: FarmTenure;
   addLocationLater?: boolean;
   sectors?: FarmSector[];

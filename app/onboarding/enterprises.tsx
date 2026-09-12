@@ -7,12 +7,14 @@ import { Body, Caption, H2 } from '@/components/Typography';
 import { Input } from '@/components/Input';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FarmerAppService } from '@/application/FarmerAppService';
+import { useAppData } from '@/context/AppDataContext';
 import { ENTERPRISE_CATALOG } from '@/lib/onboarding/enterprises';
 import { VALUE_CHAIN_GROUPS } from '@/lib/onboarding/valueChains';
 import type { FarmSector, OnboardingDraft } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
 
 export default function Enterprises() {
+  const { refresh } = useAppData();
   const [draft, setDraft] = useState<OnboardingDraft>({ intent: 'new', step: 'enterprises', sectors: [] });
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<(typeof VALUE_CHAIN_GROUPS)[number]['id']>('all');
@@ -45,14 +47,15 @@ export default function Enterprises() {
       setError('Choose at least one enterprise. You can add more later.');
       return;
     }
-    const next: OnboardingDraft = { ...draft, step: 'enterprise_setup' };
-    await FarmerAppService.saveOnboardingDraft(next);
-    router.replace('/onboarding/setup');
+    const next: OnboardingDraft = { ...draft, step: 'complete', institutionChoice: 'later' };
+    await FarmerAppService.completeSelfOnboarding(next);
+    await refresh();
+    router.replace('/onboarding/complete');
   }
 
   return (
     <AppShell>
-      <Caption>Step 4 of 6</Caption>
+      <Caption>Step 3 of 3</Caption>
       <H2 style={{ marginTop: spacing.sm }}>What do you farm?</H2>
       <Body style={styles.lead}>Kenya’s main value chains. Choose what is on this farm now.</Body>
       <Input

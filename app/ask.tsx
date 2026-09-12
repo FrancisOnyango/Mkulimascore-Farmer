@@ -43,9 +43,8 @@ function getContextualStarters({
   if (records.some((record) => /cost|expense/i.test(`${record.category} ${record.title}`))) suggestions.push('What have I spent?');
   if (requests.some((request) => request.status === 'open')) suggestions.push('What record is still needed?');
   if (farms.some((farm) => !farm.mapped)) suggestions.push('Is my farm mapped?');
-  if (insights.some((insight) => insight.tone === 'attention')) suggestions.push('What should I do first?');
   if (outbox.some((item) => item.state !== 'SYNCED')) suggestions.push('What is still waiting to send?');
-  if (suggestions.length === 0) suggestions.push('What should I do first?');
+  if (suggestions.length === 0) suggestions.push('How is the weather for my farm?');
   return [...new Set(suggestions)].slice(0, 4);
 }
 
