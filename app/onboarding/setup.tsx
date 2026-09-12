@@ -4,9 +4,11 @@ import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Input, keyboardFor } from '@/components/Input';
+import { SuggestInput } from '@/components/SuggestInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { enterpriseCatalog } from '@/lib/onboarding/enterprises';
+import { buyerSuggestions } from '@/lib/onboarding/valueChains';
 import type { FarmSector, OnboardingDraft } from '@/domain/types';
 import { colors, spacing } from '@/constants/theme';
 
@@ -46,16 +48,34 @@ export default function EnterpriseSetup() {
         return (
           <React.Fragment key={sector}>
             <H3 style={{ marginBottom: spacing.md }}>{catalog.label}</H3>
-            {catalog.fields.map((field) => (
-              <Input
-                key={field.key}
-                label={field.label}
-                placeholder={field.placeholder}
-                keyboardType={keyboardFor(field.keyboard)}
-                value={draft.enterpriseDetails?.[sector]?.[field.key] ?? ''}
-                onChangeText={(value) => setField(sector, field.key, value)}
-              />
-            ))}
+            {catalog.fields.map((field) => {
+              const value = draft.enterpriseDetails?.[sector]?.[field.key] ?? '';
+              if (field.kind === 'buyer') {
+                return (
+                  <SuggestInput
+                    key={field.key}
+                    label={field.label}
+                    placeholder={field.placeholder}
+                    hint={field.hint}
+                    value={value}
+                    onChangeText={(next) => setField(sector, field.key, next)}
+                    suggestions={buyerSuggestions(sector)}
+                    autoCapitalize="words"
+                  />
+                );
+              }
+              return (
+                <Input
+                  key={field.key}
+                  label={field.label}
+                  placeholder={field.placeholder}
+                  hint={field.hint ?? (field.kind === 'date' ? 'Day, month and year if you remember.' : undefined)}
+                  keyboardType={keyboardFor(field.keyboard)}
+                  value={value}
+                  onChangeText={(next) => setField(sector, field.key, next)}
+                />
+              );
+            })}
           </React.Fragment>
         );
       })}

@@ -1,21 +1,56 @@
 export type VerificationState = 'verified' | 'supported' | 'reported' | 'needs_review';
 export type SyncState = 'LOCAL' | 'PENDING' | 'SYNCING' | 'SYNCED' | 'RETRY' | 'FAILED' | 'CONFLICT';
 export type InsightTone = 'positive' | 'neutral' | 'attention';
-export type FarmSector =
-  | 'Dairy'
-  | 'Maize'
-  | 'Coffee'
-  | 'Tea'
-  | 'Avocado'
-  | 'Poultry'
-  | 'Rice'
-  | 'Irish potatoes'
-  | 'Tomato'
-  | 'Beans'
-  | 'Livestock'
-  | 'Aquaculture'
-  | 'Macadamia'
-  | 'Other';
+export const FARM_SECTORS = [
+  'Dairy',
+  'Beef',
+  'Goats & sheep',
+  'Poultry',
+  'Pigs',
+  'Camels',
+  'Livestock',
+  'Aquaculture',
+  'Beekeeping',
+  'Maize',
+  'Wheat',
+  'Rice',
+  'Sorghum',
+  'Millet',
+  'Beans',
+  'Green grams',
+  'Cowpeas',
+  'Pigeon peas',
+  'Groundnuts',
+  'Soybean',
+  'Irish potatoes',
+  'Sweet potatoes',
+  'Cassava',
+  'Banana',
+  'Tomato',
+  'Onion',
+  'Kale',
+  'Cabbage',
+  'French beans',
+  'Capsicum',
+  'Watermelon',
+  'Mango',
+  'Avocado',
+  'Passion fruit',
+  'Pineapple',
+  'Citrus',
+  'Macadamia',
+  'Cashew',
+  'Coconut',
+  'Tea',
+  'Coffee',
+  'Sugarcane',
+  'Cotton',
+  'Flowers',
+  'Sunflower',
+  'Pyrethrum',
+  'Other'
+] as const;
+export type FarmSector = (typeof FARM_SECTORS)[number];
 export type OnboardingStep =
   | 'consent'
   | 'identity'

@@ -41,14 +41,31 @@ export default function Identity() {
       <Caption>Step 2 of 6</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{strings.identity.title}</H2>
       <Body style={styles.lead}>{strings.identity.body}</Body>
-      <Input label={strings.identity.name} value={draft.displayName ?? ''} autoComplete="name" textContentType="name" autoCapitalize="words" onChangeText={(displayName) => setDraft((current) => ({ ...current, displayName }))} placeholder="Francis Mwangi" />
-      <Caption style={styles.label}>{strings.identity.county}</Caption>
-      <Pressable accessibilityRole="button" accessibilityLabel="Choose county" onPress={() => setShowCounties((value) => !value)} style={styles.select}>
-        <Text style={[styles.selectText, !draft.county && styles.placeholder]}>{draft.county ?? 'Select county'}</Text>
-      </Pressable>
+      <Input
+        label={strings.identity.name}
+        value={draft.displayName ?? ''}
+        autoComplete="name"
+        textContentType="name"
+        autoCapitalize="words"
+        autoCorrect={false}
+        onChangeText={(displayName) => setDraft((current) => ({ ...current, displayName }))}
+        placeholder="Francis Mwangi"
+        hint="The name this Passport should use."
+      />
+      <Input
+        label={strings.identity.county}
+        value={draft.county ?? ''}
+        onChangeText={(county) => {
+          setDraft((current) => ({ ...current, county }));
+          setShowCounties(true);
+        }}
+        placeholder="Start typing Nyeri, Kiambu..."
+        autoComplete="off"
+        hint="All 47 counties. Tap the match."
+      />
       {showCounties ? (
-        <ScrollView style={styles.list} nestedScrollEnabled>
-          {KENYA_COUNTIES.map((county) => (
+        <ScrollView style={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+          {KENYA_COUNTIES.filter((county) => !draft.county || county.toLowerCase().includes((draft.county ?? '').toLowerCase())).map((county) => (
             <Pressable
               key={county}
               accessibilityRole="button"
@@ -63,8 +80,24 @@ export default function Identity() {
           ))}
         </ScrollView>
       ) : null}
-      <Input label={strings.identity.yearOfBirth} value={draft.yearOfBirth ?? ''} keyboardType="number-pad" maxLength={4} onChangeText={(yearOfBirth) => setDraft((current) => ({ ...current, yearOfBirth }))} placeholder="1984" />
-      <Input label={strings.identity.nationalId} value={draft.nationalId ?? ''} keyboardType="number-pad" onChangeText={(nationalId) => setDraft((current) => ({ ...current, nationalId }))} placeholder="Optional" />
+      <Input
+        label={strings.identity.yearOfBirth}
+        value={draft.yearOfBirth ?? ''}
+        keyboardType="number-pad"
+        maxLength={4}
+        onChangeText={(yearOfBirth) => setDraft((current) => ({ ...current, yearOfBirth }))}
+        placeholder="1984"
+        hint="Year only. Optional, but useful."
+      />
+      <Input
+        label={strings.identity.nationalId}
+        value={draft.nationalId ?? ''}
+        keyboardType="number-pad"
+        autoComplete="off"
+        onChangeText={(nationalId) => setDraft((current) => ({ ...current, nationalId }))}
+        placeholder="Optional"
+        hint="Stays on this phone unless you later share it."
+      />
       {error ? <Caption style={styles.error}>{error}</Caption> : null}
       <PrimaryButton label="Continue" onPress={() => void continueNext()} />
     </AppShell>

@@ -4,7 +4,9 @@ import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2 } from '@/components/Typography';
 import { Input } from '@/components/Input';
+import { SuggestInput } from '@/components/SuggestInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { institutionSuggestions } from '@/lib/onboarding/valueChains';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { colors, spacing } from '@/constants/theme';
@@ -37,8 +39,15 @@ export default function ConnectInstitution() {
     <AppShell>
       <H2>Connect a SACCO or cooperative</H2>
       <Body style={styles.lead}>This creates a request. It does not share your records until you allow it and they confirm you.</Body>
-      <Input label="Institution name" value={name} onChangeText={setName} placeholder="Type the name" />
-      <Input label="Member number" value={memberNumber} onChangeText={setMemberNumber} placeholder="Optional" />
+      <SuggestInput
+        label="Institution name"
+        value={name}
+        onChangeText={setName}
+        placeholder="Start typing the SACCO or cooperative"
+        suggestions={institutionSuggestions()}
+        autoCapitalize="words"
+      />
+      <Input label="Member number" value={memberNumber} onChangeText={setMemberNumber} placeholder="Optional" hint="Only if you already have one." autoComplete="off" />
       <PrimaryButton label={saving ? 'Saving...' : 'Send connection request'} disabled={saving} onPress={() => void save()} />
       <Caption style={{ marginTop: spacing.lg }}>Status will show as connection pending until confirmed.</Caption>
     </AppShell>

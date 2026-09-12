@@ -8,6 +8,7 @@ import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { strings } from '@/constants/strings';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, radius, spacing } from '@/constants/theme';
 import {
   TRIAL_CHALLENGE_ID,
@@ -47,9 +48,7 @@ export default function Welcome() {
   return (
     <AuthShell contentStyle={styles.screen}>
       <View style={styles.hero}>
-        <View style={styles.mark} accessibilityElementsHidden>
-          <View style={styles.markRing} />
-        </View>
+        <BrandMark size={64} light />
         <Text style={styles.kenya}>{strings.welcome.kenya}</Text>
         <Text style={styles.brand}>{strings.welcome.brand}</Text>
         <Text style={styles.brandLine}>{strings.welcome.brandLine}</Text>
@@ -122,17 +121,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28
   },
-  mark: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 7,
-    borderColor: '#8FCB9B',
-    backgroundColor: 'transparent',
-    marginBottom: spacing.lg
-  },
-  markRing: { flex: 1 },
-  kenya: { color: '#C9E6D1', fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase' },
+  kenya: { color: '#C9E6D1', fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', marginTop: spacing.lg },
   brand: { color: '#fff', fontSize: 36, lineHeight: 42, fontWeight: '800', marginTop: spacing.xs },
   brandLine: { color: '#D7E8DC', fontSize: 16, lineHeight: 22, marginTop: spacing.sm, maxWidth: 280 },
   sheet: { paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, paddingBottom: spacing.xl },

@@ -7,6 +7,7 @@ import { Input } from '@/components/Input';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { formatKenyaPhoneInput, isPlausibleKenyaPhone } from '@/lib/phone/kenya';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, radius, spacing } from '@/constants/theme';
 import { TRIAL_PHONE, TRIAL_PHONE_DISPLAY, trialAccessEnabled } from '@/lib/auth/trialCredentials';
 
@@ -49,7 +50,8 @@ export default function Phone() {
         />
       }
     >
-      <Caption>{returning ? 'Welcome back' : 'New Passport'}</Caption>
+      <BrandMark size={40} />
+      <Caption style={{ marginTop: spacing.md }}>{returning ? 'Welcome back' : 'New Passport'}</Caption>
       <H2 style={{ marginTop: spacing.sm }}>{returning ? 'Sign in with your phone' : 'Your phone number'}</H2>
       <Body style={styles.help}>
         {returning

@@ -5,6 +5,8 @@ import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/EmptyState';
 import { HomeSkeleton } from '@/components/Skeleton';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { BrandMark } from '@/components/BrandMark';
+import { FarmPlaceMap } from '@/components/FarmPlaceMap';
 import { useAppData } from '@/context/AppDataContext';
 import { buildTodayBrief } from '@/lib/intelligence/today';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -55,13 +57,20 @@ export default function Home() {
   });
   const unread = notifications.filter((item) => !item.read).length;
   const farmRoute = farm ? `/farm/${farm.id}` : '/(tabs)/farm';
+  const headline = brief.lines[0];
+  const rest = brief.lines.slice(1);
+  const today = new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const health = brief.twin.health;
+  const mapped = Boolean(farm?.mapped && farm.boundary && farm.boundary.length >= 3);
 
   return (
     <AppShell>
       <View style={styles.top}>
+        <BrandMark size={40} />
         <View style={{ flex: 1 }}>
           <Text style={styles.hello}>{brief.hello}, {brief.firstName}</Text>
           <Text style={styles.place}>{brief.placeLine || 'Your farm'}</Text>
+          <Text style={styles.date}>{today}</Text>
         </View>
         <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={styles.bell}>
           <Text style={styles.bellText}>{unread || '·'}</Text>
@@ -84,13 +93,29 @@ export default function Home() {
         </View>
       ) : null}
 
-      {brief.lines.length ? (
+      {farm?.latitude != null && farm.longitude != null ? (
+        <Pressable onPress={() => router.push((mapped ? farmRoute : '/farm/map') as never)} accessibilityRole="button" accessibilityLabel="Open farm map">
+          <FarmPlaceMap farm={farm} height={132} interactive={false} showZoom={false} basemap="satellite" />
+          <Text style={styles.mapHint}>{mapped ? 'Your farm · tap to open' : 'Place marked · walk the edge when you are there'}</Text>
+        </Pressable>
+      ) : null}
+
+      {headline ? (
         <Pressable onPress={() => router.push(farmRoute as never)} style={styles.today} accessibilityRole="button">
-          <Text style={styles.todayKicker}>Today on your farm</Text>
-          {brief.lines.map((line) => (
-            <Text key={line.id} style={line.kind === 'weather' || line.kind === 'cycle' ? styles.lead : styles.line}>{line.text}</Text>
+          <View style={styles.todayTop}>
+            <Text style={styles.todayKicker}>Today on your farm</Text>
+            <View style={[styles.pill, health.level === 'attention' && styles.pillHot, health.level === 'watch' && styles.pillWarm]}>
+              <Text style={styles.pillText}>{health.label}</Text>
+            </View>
+          </View>
+          <Text style={styles.lead}>{headline.text}</Text>
+          {rest.map((line) => (
+            <View key={line.id} style={styles.row}>
+              <View style={styles.dot} />
+              <Text style={styles.line}>{line.text}</Text>
+            </View>
           ))}
-          <Text style={styles.todayLink}>View farm</Text>
+          <Text style={styles.todayLink}>{farm ? 'Open this farm' : 'Add a farm'}</Text>
         </Pressable>
       ) : null}
 
@@ -107,9 +132,9 @@ export default function Home() {
 
       {brief.recent.length ? (
         <View style={styles.recent}>
-          <Text style={styles.kicker}>Recent</Text>
+          <Text style={styles.kicker}>Already noted</Text>
           {brief.recent.map((item) => (
-            <Text key={item.id} style={styles.recentItem}>✓ {item.title}</Text>
+            <Text key={item.id} style={styles.recentItem}>✓  {item.title}</Text>
           ))}
         </View>
       ) : null}
@@ -119,20 +144,29 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
-  hello: { color: colors.ink, fontSize: 28, lineHeight: 34, fontWeight: '800' },
-  place: { color: colors.muted, fontSize: 15, marginTop: 4, fontWeight: '600' },
+  hello: { color: colors.ink, fontSize: 26, lineHeight: 32, fontWeight: '800' },
+  place: { color: colors.muted, fontSize: 15, marginTop: 2, fontWeight: '700' },
+  date: { color: colors.faint, fontSize: 13, marginTop: 2, fontWeight: '600' },
   bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
   bellText: { color: '#fff', fontWeight: '800' },
-  switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
   farmChip: { minHeight: 34, borderRadius: 17, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
   farmChipOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   farmChipText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
   farmChipTextOn: { color: '#fff' },
-  today: { backgroundColor: colors.brandDark, borderRadius: 20, padding: spacing.lg, marginBottom: spacing.lg },
+  mapHint: { color: colors.faint, fontSize: 12, fontWeight: '700', marginTop: 6, marginBottom: spacing.md },
+  today: { backgroundColor: colors.brandDark, borderRadius: 22, padding: spacing.lg, marginBottom: spacing.lg },
+  todayTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   todayKicker: { color: '#C9E6D1', fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+  pill: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  pillWarm: { backgroundColor: 'rgba(243,228,192,0.22)' },
+  pillHot: { backgroundColor: 'rgba(166,84,63,0.35)' },
+  pillText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   todayLink: { color: '#9FD0B0', fontWeight: '800', marginTop: spacing.md },
-  lead: { color: '#fff', fontSize: 20, lineHeight: 26, fontWeight: '800', marginTop: spacing.sm },
-  line: { color: '#D8E8DE', fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
+  lead: { color: '#fff', fontSize: 22, lineHeight: 28, fontWeight: '800', marginTop: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: spacing.sm },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#9FD0B0', marginTop: 8 },
+  line: { flex: 1, color: '#D8E8DE', fontSize: 15, lineHeight: 22 },
   kicker: { color: colors.brand, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   block: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   title: { color: colors.ink, fontSize: 20, fontWeight: '800', marginTop: spacing.xs },

@@ -8,18 +8,24 @@ import { Input } from '@/components/Input';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { ENTERPRISE_CATALOG } from '@/lib/onboarding/enterprises';
+import { VALUE_CHAIN_GROUPS } from '@/lib/onboarding/valueChains';
 import type { FarmSector, OnboardingDraft } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
 
 export default function Enterprises() {
   const [draft, setDraft] = useState<OnboardingDraft>({ intent: 'new', step: 'enterprises', sectors: [] });
   const [query, setQuery] = useState('');
+  const [group, setGroup] = useState<(typeof VALUE_CHAIN_GROUPS)[number]['id']>('all');
   const [error, setError] = useState<string | null>(null);
   const selected = draft.sectors ?? [];
-  const shown = useMemo(
-    () => ENTERPRISE_CATALOG.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase())),
-    [query]
-  );
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return ENTERPRISE_CATALOG.filter((item) => {
+      const inGroup = group === 'all' || item.group === group;
+      const inSearch = !needle || item.label.toLowerCase().includes(needle) || item.hint.toLowerCase().includes(needle);
+      return inGroup && inSearch;
+    });
+  }, [group, query]);
 
   useEffect(() => {
     void FarmerAppService.getSessionState().then((session) => {
@@ -48,8 +54,28 @@ export default function Enterprises() {
     <AppShell>
       <Caption>Step 4 of 6</Caption>
       <H2 style={{ marginTop: spacing.sm }}>What do you farm?</H2>
-      <Body style={styles.lead}>Choose the enterprises that matter now. You can select more than one.</Body>
-      <Input value={query} onChangeText={setQuery} placeholder="Search dairy, maize, tea..." accessibilityLabel="Search enterprises" />
+      <Body style={styles.lead}>Kenya’s main value chains. Choose what is on this farm now.</Body>
+      <Input
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search maize, dairy, tea, ndengu..."
+        accessibilityLabel="Search enterprises"
+        autoComplete="off"
+        hint={selected.length ? `${selected.length} selected` : 'You can select more than one.'}
+      />
+      <View style={styles.groups}>
+        {VALUE_CHAIN_GROUPS.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => setGroup(item.id)}
+            style={[styles.group, group === item.id && styles.groupOn]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: group === item.id }}
+          >
+            <Text style={[styles.groupText, group === item.id && styles.groupTextOn]}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.grid}>
         {shown.map((item) => {
           const active = selected.includes(item.sector);
@@ -62,7 +88,7 @@ export default function Enterprises() {
               accessibilityLabel={`${item.label}. ${item.hint}`}
               style={[styles.tile, active && styles.tileActive]}
             >
-              <Ionicons name={item.icon} size={26} color={active ? '#fff' : colors.brandDark} />
+              <Ionicons name={item.icon} size={22} color={active ? '#fff' : colors.brandDark} />
               <Text style={[styles.tileTitle, active && styles.tileTitleActive]}>{item.label}</Text>
               <Text style={[styles.tileHint, active && styles.tileHintActive]}>{item.hint}</Text>
             </Pressable>
@@ -77,12 +103,17 @@ export default function Enterprises() {
 
 const styles = StyleSheet.create({
   lead: { marginTop: spacing.sm, marginBottom: spacing.lg, color: colors.muted },
+  groups: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  group: { minHeight: 36, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  groupOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
+  groupText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
+  groupTextOn: { color: '#fff' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl },
-  tile: { width: '48%', minHeight: 112, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, padding: spacing.md, justifyContent: 'space-between' },
+  tile: { width: '48%', minHeight: 104, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, padding: spacing.md, justifyContent: 'space-between' },
   tileActive: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
-  tileTitle: { color: colors.ink, fontWeight: '800', fontSize: 17, marginTop: spacing.sm },
+  tileTitle: { color: colors.ink, fontWeight: '800', fontSize: 16, marginTop: spacing.sm },
   tileTitleActive: { color: '#fff' },
-  tileHint: { color: colors.muted, fontSize: 13 },
+  tileHint: { color: colors.muted, fontSize: 12 },
   tileHintActive: { color: '#D8E8DE' },
   error: { color: colors.danger, fontWeight: '700', marginBottom: spacing.md }
 });

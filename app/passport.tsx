@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import { DataRow } from '@/components/DataRow';
 import { StatusPill } from '@/components/StatusPill';
 import { useAppData } from '@/context/AppDataContext';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, spacing } from '@/constants/theme';
 import { strings } from '@/constants/strings';
 import { formatDate } from '@/lib/utils/format';
@@ -34,9 +35,14 @@ export default function PassportScreen() {
 
   return (
     <AppShell>
-      <Eyebrow>Mkulima Passport</Eyebrow>
-      <H2 style={{ marginTop: spacing.sm }}>{passport.displayName || 'Your Passport'}</H2>
-      <Caption>{passport.location || 'Location can be added later'}</Caption>
+      <View style={styles.brandRow}>
+        <BrandMark size={40} />
+        <View style={{ flex: 1 }}>
+          <Eyebrow>Mkulima Passport</Eyebrow>
+          <H2 style={{ marginTop: spacing.sm }}>{passport.displayName || 'Your Passport'}</H2>
+          <Caption>{passport.location || 'Location can be added later'}</Caption>
+        </View>
+      </View>
 
       <Card style={styles.hero}>
         <View style={styles.heroRail} />
@@ -143,6 +149,7 @@ function Section({ title, values }: { title: string; values: string[] }) {
 }
 
 const styles = StyleSheet.create({
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   hero: { marginTop: spacing.xl, backgroundColor: colors.brandDark, borderColor: colors.brandDark, overflow: 'hidden' },
   heroRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, backgroundColor: colors.info },
   heroCaption: { color: '#D8E8DE' },

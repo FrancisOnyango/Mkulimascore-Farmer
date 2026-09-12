@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mkulima",
     "slug": "mkulima-farmer",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "mkulima",
@@ -15,6 +15,9 @@
       },
       "permissions": [
         "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VISUAL_USER_SELECTED",
+        "READ_EXTERNAL_STORAGE",
         "POST_NOTIFICATIONS",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
@@ -37,7 +40,15 @@
         {
           "locationWhenInUsePermission": "Mkulima uses your location only when you choose to mark or walk your farm."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Mkulima uses the camera only when you choose to photograph a farm record.",
+          "photosPermission": "Mkulima uses photos only when you choose to attach a farm record."
+        }
+      ],
+      "expo-document-picker"
     ],
     "extra": {
       "appRole": "farmer"

@@ -58,22 +58,22 @@ function labelForContext(context: AddContext) {
 function optionsForContext(context: AddContext) {
   if (context === 'farm') {
     return [
-      { title: 'Photo', detail: 'Farm or document.', symbol: '•', route: '/add/record' },
+      { title: 'Photo', detail: 'Take a picture or choose a file from this phone.', symbol: '•', route: '/add/record' },
       { title: 'Fix a detail', detail: 'Area, place or water.', symbol: '•', route: '/add/correction' },
       { title: 'Production', detail: 'Milk, harvest or flock.', symbol: '•', route: '/add/production' }
     ];
   }
   if (context === 'enterprise') {
     return [
-      { title: 'Production', detail: 'Milk, harvest, eggs or delivery.', symbol: '•', route: '/add/production' },
-      { title: 'Sale', detail: 'What you sold.', symbol: '•', route: '/add/sale' },
-      { title: 'Cost', detail: 'Feed, seed or labour.', symbol: '•', route: '/add/cost' },
-      { title: 'Photo', detail: 'Receipt or statement.', symbol: '•', route: '/add/record' }
+      { title: 'Production', detail: 'Milk, harvest, eggs or delivery — with the date.', symbol: '•', route: '/add/production' },
+      { title: 'Sale', detail: 'What you were paid, in Kenya shillings.', symbol: '•', route: '/add/sale' },
+      { title: 'Cost', detail: 'Feed, seed, labour or transport.', symbol: '•', route: '/add/cost' },
+      { title: 'Photo', detail: 'Take a picture or choose a file from this phone.', symbol: '•', route: '/add/record' }
     ];
   }
   if (context === 'records') {
     return [
-      { title: 'Photo', detail: 'Receipt or statement.', symbol: '•', route: '/add/record' },
+      { title: 'Photo', detail: 'Take a picture or choose a file from this phone.', symbol: '•', route: '/add/record' },
       { title: 'Fix a detail', detail: 'Something looks wrong.', symbol: '•', route: '/add/correction' }
     ];
   }
@@ -81,7 +81,7 @@ function optionsForContext(context: AddContext) {
     { title: 'Production', detail: 'Milk, harvest, eggs or delivery.', symbol: '•', route: '/add/production' },
     { title: 'Sale', detail: 'What you sold.', symbol: '•', route: '/add/sale' },
     { title: 'Cost', detail: 'Feed, seed or labour.', symbol: '•', route: '/add/cost' },
-    { title: 'Photo', detail: 'Receipt or statement.', symbol: '•', route: '/add/record' }
+    { title: 'Photo', detail: 'Take a picture or choose a file from this phone.', symbol: '•', route: '/add/record' }
   ];
 }
 

@@ -6,6 +6,7 @@ import { Body, Caption, H1, H3 } from '@/components/Typography';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmerAppService } from '@/application/FarmerAppService';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, radius, spacing } from '@/constants/theme';
 
 export default function OnboardingComplete() {
@@ -20,7 +21,8 @@ export default function OnboardingComplete() {
 
   return (
     <AppShell contentStyle={styles.container}>
-      <Caption>Mkulima Passport</Caption>
+      <BrandMark size={56} />
+      <Caption style={{ marginTop: spacing.md }}>Mkulima Passport</Caption>
       <H1 style={{ marginTop: spacing.sm }}>Your Mkulima Passport is ready.</H1>
       <Body style={styles.lead}>You can keep improving your profile as your farm changes.</Body>
       <View style={styles.list}>

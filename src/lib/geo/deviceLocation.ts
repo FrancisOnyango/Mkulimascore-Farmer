@@ -31,7 +31,11 @@ export async function watchDeviceFixes(
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) return { ok: false, reason: 'denied' };
     const sub = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, distanceInterval: 8, timeInterval: 2000 },
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        distanceInterval: 3,
+        timeInterval: 1200
+      },
       (position) => {
         onFix({
           latitude: position.coords.latitude,

@@ -1,14 +1,15 @@
-import type {
-  ActivityItem,
-  ConsentGrant,
-  Enterprise,
-  EvidenceRecord,
-  Farm,
-  FarmSector,
-  FinancingFacility,
-  Insight,
-  InstitutionRequest,
-  Passport
+import {
+  FARM_SECTORS,
+  type ActivityItem,
+  type ConsentGrant,
+  type Enterprise,
+  type EvidenceRecord,
+  type Farm,
+  type FarmSector,
+  type FinancingFacility,
+  type Insight,
+  type InstitutionRequest,
+  type Passport
 } from '@/domain/types';
 
 export interface FarmerProjection {
@@ -256,7 +257,7 @@ function readiness(value: unknown) {
 }
 
 function sector(value: unknown): FarmSector {
-  const allowed: FarmSector[] = ['Dairy', 'Maize', 'Coffee', 'Tea', 'Avocado', 'Poultry', 'Rice', 'Irish potatoes', 'Tomato', 'Beans', 'Livestock', 'Aquaculture', 'Macadamia', 'Other'];
+  const allowed = FARM_SECTORS as readonly string[];
   return typeof value === 'string' && (allowed as string[]).includes(value) ? value as FarmSector : 'Other';
 }
 

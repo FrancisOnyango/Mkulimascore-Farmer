@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
+import { Input } from '@/components/Input';
+import { SuggestInput } from '@/components/SuggestInput';
+import { EvidenceAttach } from '@/components/EvidenceAttach';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmerAppService } from '@/application/FarmerAppService';
@@ -22,31 +25,6 @@ export default function Correction() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function takePhoto() {
-    try {
-      const ImagePicker = await import('expo-image-picker');
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Camera permission', 'Camera access is needed only when you choose to photograph supporting evidence.');
-        return;
-      }
-      const result = await ImagePicker.launchCameraAsync({ quality: 0.78, mediaTypes: ['images'] });
-      if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
-    } catch {
-      Alert.alert('Camera unavailable', 'You can type the correction without a photo.');
-    }
-  }
-
-  async function chooseDocument() {
-    try {
-      const DocumentPicker = await import('expo-document-picker');
-      const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
-      if (!result.canceled) setDraft((current) => ({ ...current, evidenceUri: result.assets[0]?.uri ?? null }));
-    } catch {
-      Alert.alert('Files unavailable', 'You can type the correction without a file.');
-    }
-  }
 
   async function save() {
     if (!passport) return setError('Your passport is not available yet.');
@@ -83,17 +61,36 @@ export default function Correction() {
       <Card style={{ marginTop: spacing.xl }}>
         <Caption>Current verified value</Caption>
         <H3 style={{ marginTop: 4 }}>{draft.currentValue || 'Not shown'}</H3>
-        <Text style={styles.label}>Information to correct</Text>
-        <TextInput accessibilityLabel="Information to correct" value={draft.field} onChangeText={(field) => setDraft((current) => ({ ...current, field }))} autoCapitalize="sentences" returnKeyType="next" placeholder="Farm area, buyer, location..." style={styles.input} />
-        <Text style={styles.label}>Proposed value</Text>
-        <TextInput accessibilityLabel="Proposed value" value={draft.proposedValue} onChangeText={(proposedValue) => setDraft((current) => ({ ...current, proposedValue }))} autoCapitalize="sentences" returnKeyType="next" placeholder="What should it say?" style={styles.input} />
-        <Text style={styles.label}>Reason</Text>
-        <TextInput accessibilityLabel="Correction reason" value={draft.reason} onChangeText={(reason) => setDraft((current) => ({ ...current, reason }))} autoCapitalize="sentences" returnKeyType="done" placeholder="Explain why this should be reviewed" style={[styles.input, styles.multiline]} multiline />
-        <View style={{ gap: spacing.md, marginTop: spacing.xl }}>
-          <PrimaryButton label="Add photo evidence" variant="secondary" onPress={takePhoto} />
-          <PrimaryButton label="Choose evidence document" variant="secondary" onPress={chooseDocument} />
-        </View>
-        {draft.evidenceUri ? <Caption style={{ marginTop: spacing.md }}>Evidence selected: {draft.evidenceUri.split('/').pop()}</Caption> : null}
+        <SuggestInput
+          label="Information to correct"
+          value={draft.field}
+          onChangeText={(field) => setDraft((current) => ({ ...current, field }))}
+          autoCapitalize="sentences"
+          placeholder="Farm area, buyer or location"
+          suggestions={['Farm area', 'Farm place', 'Buyer', 'Enterprise', 'Location']}
+        />
+        <Input
+          label="Proposed value"
+          value={draft.proposedValue}
+          onChangeText={(proposedValue) => setDraft((current) => ({ ...current, proposedValue }))}
+          autoCapitalize="sentences"
+          placeholder="What should it say?"
+          hint="Write the correct figure or name."
+        />
+        <Input
+          label="Reason"
+          value={draft.reason}
+          onChangeText={(reason) => setDraft((current) => ({ ...current, reason }))}
+          autoCapitalize="sentences"
+          placeholder="Why should this be reviewed?"
+          multiline
+        />
+        <Caption style={{ marginTop: spacing.md }}>Supporting evidence, optional</Caption>
+        <EvidenceAttach
+          uri={draft.evidenceUri}
+          onCaptured={(file) => setDraft((current) => ({ ...current, evidenceUri: file.uri }))}
+          onClear={() => setDraft((current) => ({ ...current, evidenceUri: null }))}
+        />
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       </Card>
       <View style={{ marginTop: spacing.xl }}>

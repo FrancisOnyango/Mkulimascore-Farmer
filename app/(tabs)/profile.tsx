@@ -6,6 +6,7 @@ import { Body, Caption, H1 } from '@/components/Typography';
 import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
 import { AskBar } from '@/components/AskBar';
 import { useAppData } from '@/context/AppDataContext';
+import { BrandMark } from '@/components/BrandMark';
 import { colors, radius, spacing } from '@/constants/theme';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { consentStatusLabel } from '@/lib/copy/status';
@@ -32,8 +33,13 @@ export default function Profile() {
 
   return (
     <AppShell>
-      <H1>{passport.displayName || 'Farmer'}</H1>
-      <Caption style={{ marginTop: spacing.xs }}>{passport.location || passport.phoneMasked}</Caption>
+      <View style={styles.hero}>
+        <BrandMark size={48} />
+        <View style={{ flex: 1 }}>
+          <H1>{passport.displayName || 'Farmer'}</H1>
+          <Caption style={{ marginTop: spacing.xs }}>{passport.location || passport.phoneMasked}</Caption>
+        </View>
+      </View>
       <View style={{ marginTop: spacing.lg }}>
         <AskBar onPress={() => router.push('/ask')} />
       </View>
@@ -79,6 +85,7 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
+  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   logout: { minHeight: 52, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xxl },
   logoutText: { color: colors.danger, fontWeight: '800', fontSize: 16 }
 });

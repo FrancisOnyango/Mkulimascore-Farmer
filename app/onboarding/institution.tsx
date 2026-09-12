@@ -4,7 +4,9 @@ import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2 } from '@/components/Typography';
 import { Input } from '@/components/Input';
+import { SuggestInput } from '@/components/SuggestInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { institutionSuggestions } from '@/lib/onboarding/valueChains';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import type { OnboardingDraft } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -60,8 +62,22 @@ export default function Institution() {
       </View>
       {draft.institutionChoice === 'yes' ? (
         <>
-          <Input label="Institution name" value={draft.institutionName ?? ''} onChangeText={(institutionName) => setDraft((current) => ({ ...current, institutionName }))} placeholder="Search or type the name" />
-          <Input label="Member number" value={draft.memberNumber ?? ''} onChangeText={(memberNumber) => setDraft((current) => ({ ...current, memberNumber }))} placeholder="Optional" />
+          <SuggestInput
+            label="Institution name"
+            value={draft.institutionName ?? ''}
+            onChangeText={(institutionName) => setDraft((current) => ({ ...current, institutionName }))}
+            placeholder="Start typing the SACCO or cooperative"
+            suggestions={institutionSuggestions()}
+            autoCapitalize="words"
+          />
+          <Input
+            label="Member number"
+            value={draft.memberNumber ?? ''}
+            onChangeText={(memberNumber) => setDraft((current) => ({ ...current, memberNumber }))}
+            placeholder="Optional"
+            hint="Only if you already have one."
+            autoComplete="off"
+          />
           <Caption>Connection stays pending until the institution confirms you.</Caption>
         </>
       ) : null}

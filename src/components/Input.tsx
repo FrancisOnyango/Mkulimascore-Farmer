@@ -17,6 +17,8 @@ export function Input({
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <TextInput
         placeholderTextColor={colors.faint}
+        autoCorrect={props.autoCorrect ?? false}
+        autoComplete={props.autoComplete ?? 'off'}
         {...props}
         style={[styles.input, props.multiline && styles.multiline, props.style]}
         accessibilityLabel={props.accessibilityLabel ?? label}

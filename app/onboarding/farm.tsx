@@ -4,7 +4,9 @@ import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H2, H3 } from '@/components/Typography';
 import { Input } from '@/components/Input';
+import { SuggestInput } from '@/components/SuggestInput';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { farmNameSuggestions } from '@/lib/onboarding/valueChains';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { strings } from '@/constants/strings';
 import type { FarmTenure, OnboardingDraft } from '@/domain/types';
@@ -88,9 +90,23 @@ export default function FarmOnboarding() {
         value={draft.farmLocation ?? ''}
         onChangeText={(farmLocation) => setDraft((current) => ({ ...current, farmLocation, addLocationLater: false }))}
         placeholder="Village, ward or market centre"
+        hint={draft.county ? `In ${draft.county}, if that is right.` : 'Village, ward or the nearest market.'}
       />
-      <Input label={strings.farmOnboarding.name} value={draft.farmName ?? ''} onChangeText={(farmName) => setDraft((current) => ({ ...current, farmName }))} placeholder="Home farm" />
-      <Input label={`${strings.farmOnboarding.area} (acres)`} value={draft.reportedArea ?? ''} keyboardType="decimal-pad" onChangeText={(reportedArea) => setDraft((current) => ({ ...current, reportedArea }))} placeholder="2.5" />
+      <SuggestInput
+        label={strings.farmOnboarding.name}
+        value={draft.farmName ?? ''}
+        onChangeText={(farmName) => setDraft((current) => ({ ...current, farmName }))}
+        placeholder="Home farm"
+        suggestions={farmNameSuggestions()}
+      />
+      <Input
+        label={`${strings.farmOnboarding.area} (acres)`}
+        value={draft.reportedArea ?? ''}
+        keyboardType="decimal-pad"
+        onChangeText={(reportedArea) => setDraft((current) => ({ ...current, reportedArea }))}
+        placeholder="2.5"
+        hint="Your own estimate is enough. A walk can measure later."
+      />
 
       <Caption style={styles.label}>{strings.farmOnboarding.tenure}</Caption>
       <View style={styles.chips}>

@@ -1,5 +1,6 @@
 import type { ActivityItem, Enterprise, FarmSector } from '@/domain/types';
 import { actionTitle } from '@/lib/enterprises/nextAction';
+import { isDailySector } from '@/lib/onboarding/valueChains';
 
 export type CycleStage =
   | 'preparing'
@@ -77,9 +78,7 @@ export function inferFarmCycle(enterprises: Enterprise[], activity: ActivityItem
   };
 }
 
-export function isDailySector(sector?: FarmSector) {
-  return sector === 'Dairy' || sector === 'Poultry' || sector === 'Livestock' || sector === 'Aquaculture';
-}
+export { isDailySector };
 
 function dailyTypes(sector: FarmSector) {
   if (sector === 'Dairy') return ['production', 'milk'];

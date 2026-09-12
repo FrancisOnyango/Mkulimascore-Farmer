@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, Eyebrow, H2, H3 } from '@/components/Typography';
@@ -9,7 +9,8 @@ import { FarmPlaceMap, type MapPoint, type MapStudioMode } from '@/components/Fa
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
 import { getDeviceFix, watchDeviceFixes } from '@/lib/geo/deviceLocation';
-import { GPS_AREA_ACCURACY_M, pathMetres } from '@/lib/geo/geo';
+import { GPS_AREA_ACCURACY_M } from '@/lib/geo/geo';
+import { closeWalkRing, shouldKeepWalkFix, walkStats, type WalkFix } from '@/lib/geo/walk';
 import type { Farm } from '@/domain/types';
 import { colors, radius, spacing } from '@/constants/theme';
 
@@ -22,15 +23,17 @@ export default function FarmMapStudio() {
   const [method, setMethod] = useState<Method | null>(null);
   const [basemap, setBasemap] = useState<'map' | 'satellite'>('satellite');
   const [draftPoint, setDraftPoint] = useState<MapPoint | null>(null);
-  const [draftShape, setDraftShape] = useState<MapPoint[]>([]);
-  const [walkPoint, setWalkPoint] = useState<MapPoint | null>(null);
+  const [path, setPath] = useState<WalkFix[]>([]);
+  const [drawShape, setDrawShape] = useState<MapPoint[]>([]);
   const [accuracyM, setAccuracyM] = useState<number | null>(null);
   const [walking, setWalking] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [session, setSession] = useState(0);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const stopWalk = useRef<(() => void) | null>(null);
+  const pathRef = useRef<WalkFix[]>([]);
 
   useEffect(() => {
     const id = farmId || farms[0]?.id;
@@ -39,16 +42,23 @@ export default function FarmMapStudio() {
     return () => { stopWalk.current?.(); };
   }, [farmId, farms]);
 
-  const mode: MapStudioMode = method === 'walk' ? 'walk' : method === 'draw' ? 'draw' : 'view';
-  const walkedM = pathMetres(draftShape);
+  useEffect(() => {
+    pathRef.current = path;
+  }, [path]);
 
-  function resetDraft() {
+  const mode: MapStudioMode = method === 'walk' ? 'walk' : method === 'draw' ? 'draw' : 'view';
+  const stats = useMemo(() => walkStats(path), [path]);
+  const livePath = method === 'walk' ? path : drawShape;
+
+  function clearPath() {
     stopWalk.current?.();
     stopWalk.current = null;
     setWalking(false);
+    setPaused(false);
+    setPath([]);
+    pathRef.current = [];
+    setDrawShape([]);
     setDraftPoint(null);
-    setDraftShape([]);
-    setWalkPoint(null);
     setAccuracyM(null);
     setSession((value) => value + 1);
     setNote(null);
@@ -82,16 +92,42 @@ export default function FarmMapStudio() {
     if (next) setFarm(next);
   }
 
+  function onWalkFix(fix: WalkFix) {
+    setAccuracyM(fix.accuracy);
+    const verdict = shouldKeepWalkFix(pathRef.current, fix);
+    if (!verdict.keep) {
+      if (verdict.reason === 'wide') setNote('GPS is still wide. Stand still until the number drops, then walk slowly.');
+      return;
+    }
+    const next = [...pathRef.current, fix];
+    pathRef.current = next;
+    setPath(next);
+    const nextStats = walkStats(next);
+    if (nextStats.canClose) setNote('You are back near the start. You can close this boundary.');
+    else if (next.length === 1) setNote('Start recorded. Walk the edge slowly and stay on the cultivated side.');
+    else setNote(`Keep walking the edge. ${nextStats.metres} m so far.`);
+  }
+
   async function startWalk() {
     setError(null);
-    resetDraft();
     setMethod('walk');
-    const watch = await watchDeviceFixes((fix) => {
-      const point = { latitude: fix.latitude, longitude: fix.longitude };
-      setWalkPoint(point);
-      setDraftShape((current) => [...current, point]);
-      setAccuracyM((current) => current == null ? fix.accuracy : Math.max(current, fix.accuracy));
-    });
+    setPaused(false);
+    setNote('Finding your place on the farm...');
+    if (!pathRef.current.length) {
+      const first = await getDeviceFix();
+      if (first.ok) {
+        const seed = shouldKeepWalkFix([], first.fix);
+        setAccuracyM(first.fix.accuracy);
+        if (seed.keep) {
+          pathRef.current = [first.fix];
+          setPath([first.fix]);
+          setNote('Start recorded. Walk the edge slowly.');
+        } else {
+          setNote('GPS is wide. Stand at a corner until it tightens, then walk.');
+        }
+      }
+    }
+    const watch = await watchDeviceFixes((fix) => onWalkFix(fix));
     if ('ok' in watch && watch.ok === false) {
       setError(watch.reason === 'denied'
         ? 'Location permission is needed to walk the edge.'
@@ -101,12 +137,40 @@ export default function FarmMapStudio() {
     if (!('stop' in watch)) return;
     stopWalk.current = watch.stop;
     setWalking(true);
-    setNote('Walk the edge slowly. Finish when you return to the start.');
   }
 
-  async function saveShape() {
+  function pauseWalk() {
+    stopWalk.current?.();
+    stopWalk.current = null;
+    setWalking(false);
+    setPaused(true);
+    setNote('Walking paused. The shape stays on this phone.');
+  }
+
+  async function resumeWalk() {
+    setPaused(false);
+    const watch = await watchDeviceFixes((fix) => onWalkFix(fix));
+    if ('ok' in watch && watch.ok === false) {
+      setError('Could not resume GPS.');
+      return;
+    }
+    if (!('stop' in watch)) return;
+    stopWalk.current = watch.stop;
+    setWalking(true);
+    setNote('Walking again. Stay on the edge.');
+  }
+
+  function undoPoint() {
+    setPath((current) => {
+      const next = current.slice(0, -1);
+      pathRef.current = next;
+      return next;
+    });
+  }
+
+  async function saveShape(source: 'GPS_WALK' | 'DRAWN', points: MapPoint[], accuracy?: number | null) {
     if (!farm) return;
-    if (draftShape.length < 3) {
+    if (points.length < 3) {
       setError('Add at least three points around the farm.');
       return;
     }
@@ -116,11 +180,11 @@ export default function FarmMapStudio() {
       await FarmerAppService.saveFarmPlace({
         farmId: farm.id,
         kind: 'polygon',
-        latitude: draftShape[0]?.latitude ?? farm.latitude ?? 0,
-        longitude: draftShape[0]?.longitude ?? farm.longitude ?? 0,
-        boundary: draftShape,
-        boundarySource: method === 'walk' ? 'GPS_WALK' : 'DRAWN',
-        accuracyM
+        latitude: points[0]?.latitude ?? farm.latitude ?? 0,
+        longitude: points[0]?.longitude ?? farm.longitude ?? 0,
+        boundary: points,
+        boundarySource: source,
+        accuracyM: accuracy
       });
       await refresh();
       router.back();
@@ -129,6 +193,31 @@ export default function FarmMapStudio() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function finishWalk() {
+    stopWalk.current?.();
+    stopWalk.current = null;
+    setWalking(false);
+    if (!stats.canSave) {
+      setNote('Keep walking until at least three good points appear.');
+      return;
+    }
+    const closed = closeWalkRing(path);
+    const closing = walkStats(closed);
+    const acresLine = closing.acres != null
+      ? `About ${closing.acres} acres if this GPS holds.`
+      : 'GPS is too wide to measure acres. The shape will still be saved.';
+    Alert.alert(
+      stats.canClose ? 'Close this boundary?' : 'Save this walk?',
+      stats.canClose
+        ? `You returned near the start after ${stats.metres} m. ${acresLine}`
+        : `The walk has not returned to the start (${stats.gapM ?? '—'} m away). ${acresLine}`,
+      [
+        { text: 'Keep walking', style: 'cancel', onPress: () => void resumeWalk() },
+        { text: 'Save shape', onPress: () => void saveShape('GPS_WALK', closed, closing.medianAccuracy) }
+      ]
+    );
   }
 
   async function askVisit() {
@@ -154,10 +243,10 @@ export default function FarmMapStudio() {
       <AppShell>
         <Eyebrow>Map my farm</Eyebrow>
         <H2 style={{ marginTop: spacing.sm }}>{farm.name}</H2>
-        <Caption>A point is enough to start. A shape confirms the cultivated area later.</Caption>
+        <Caption>A point is enough to start. Walking the edge is the strongest shape you can add yourself.</Caption>
         <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-          <Choice title="Walk the boundary" detail="Best when you are on the farm" onPress={() => void startWalk()} />
-          <Choice title="Draw on map" detail="Quick when you can see the land" onPress={() => setMethod('draw')} />
+          <Choice title="Walk the boundary" detail="Stand at a corner, then walk the cultivated edge slowly" onPress={() => void startWalk()} />
+          <Choice title="Draw on map" detail="Pinch to zoom, then tap around the land" onPress={() => setMethod('draw')} />
           <Choice title="Ask for verification" detail="A field officer can confirm later. Kept as added by you until then." onPress={() => void askVisit()} />
         </View>
         <View style={{ marginTop: spacing.lg }}>
@@ -169,11 +258,17 @@ export default function FarmMapStudio() {
     );
   }
 
+  const accuracyTone = accuracyM == null ? 'Waiting' : accuracyM <= 15 ? 'Tight GPS' : accuracyM <= 25 ? 'Usable GPS' : 'Wide GPS';
+
   return (
-    <AppShell>
+    <AppShell scroll={false} contentStyle={styles.studio}>
       <Eyebrow>Farm place</Eyebrow>
       <H2 style={{ marginTop: spacing.sm }}>{farm.name}</H2>
-      <Caption>{method === 'walk' ? 'Walk the edge. Poor GPS will not invent acres.' : 'Tap around the edge. Added by you until a visit confirms it.'}</Caption>
+      <Caption>
+        {method === 'walk'
+          ? 'Pinch or use + − to zoom. Walk the cultivated edge. Poor GPS will not invent acres.'
+          : 'Pinch or use + − to zoom, then tap around the edge.'}
+      </Caption>
 
       <View style={styles.modes}>
         <Pressable onPress={() => setBasemap('satellite')} style={[styles.mode, basemap === 'satellite' && styles.modeOn]}>
@@ -182,7 +277,7 @@ export default function FarmMapStudio() {
         <Pressable onPress={() => setBasemap('map')} style={[styles.mode, basemap === 'map' && styles.modeOn]}>
           <Text style={[styles.modeText, basemap === 'map' && styles.modeTextOn]}>Map</Text>
         </Pressable>
-        <Pressable onPress={() => { resetDraft(); setMethod(null); }} style={styles.mode}>
+        <Pressable onPress={() => { clearPath(); setMethod(null); }} style={styles.mode}>
           <Text style={styles.modeText}>Back</Text>
         </Pressable>
       </View>
@@ -190,50 +285,74 @@ export default function FarmMapStudio() {
       <FarmPlaceMap
         farm={farm}
         mode={mode}
-        height={320}
+        height={340}
         session={session}
-        walkPoint={walkPoint}
+        path={livePath}
+        follow={method === 'walk' && walking}
         basemap={basemap}
         onPoint={setDraftPoint}
-        onPolygon={setDraftShape}
+        onPolygon={setDrawShape}
       />
 
+      <ScrollView style={styles.sheet} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
       {method === 'walk' ? (
-        <Card style={{ marginTop: spacing.md }}>
-          <H3>Boundary capture</H3>
-          <Body style={{ marginTop: spacing.sm }}>GPS accuracy · {accuracyM != null ? `${Math.round(accuracyM)} m` : 'waiting'}</Body>
-          <Body>Points captured · {draftShape.length}</Body>
-          <Body>Distance walked · {walkedM} m</Body>
+        <Card style={styles.panel}>
+          <View style={styles.hud}>
+            <Hud label={accuracyTone} value={accuracyM != null ? `${Math.round(accuracyM)} m` : '—'} tone={accuracyM != null && accuracyM <= 25 ? 'good' : 'wait'} />
+            <Hud label="Points" value={`${stats.points}`} tone="neutral" />
+            <Hud label="Walked" value={`${stats.metres} m`} tone="neutral" />
+          </View>
+          {stats.acres != null ? <Caption style={{ marginTop: spacing.sm }}>About {stats.acres} acres if this GPS holds.</Caption> : null}
+          {stats.canClose ? <Caption style={styles.close}>Back at the start. You can close the boundary.</Caption> : null}
           {note ? <Caption style={{ marginTop: spacing.sm }}>{note}</Caption> : null}
           {error ? <Caption style={styles.error}>{error}</Caption> : null}
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
             <PrimaryButton
-              label={walking ? 'Finish boundary' : 'Walk the edge'}
+              label={walking ? 'Finish boundary' : paused ? 'Resume walking' : 'Start walking'}
               onPress={() => {
-                if (walking) {
-                  stopWalk.current?.();
-                  stopWalk.current = null;
-                  setWalking(false);
-                  if (draftShape.length >= 3) void saveShape();
-                  else setNote('Keep walking until three points appear.');
-                } else {
-                  void startWalk();
-                }
+                if (walking) finishWalk();
+                else if (paused) void resumeWalk();
+                else void startWalk();
               }}
             />
+            <View style={styles.row}>
+              <Pressable onPress={walking ? pauseWalk : undefined} disabled={!walking} style={[styles.small, !walking && styles.smallOff]}>
+                <Text style={styles.smallText}>Pause</Text>
+              </Pressable>
+              <Pressable onPress={undoPoint} disabled={path.length === 0} style={[styles.small, path.length === 0 && styles.smallOff]}>
+                <Text style={styles.smallText}>Undo point</Text>
+              </Pressable>
+              <Pressable onPress={clearPath} style={styles.small}>
+                <Text style={styles.smallText}>Start over</Text>
+              </Pressable>
+            </View>
           </View>
         </Card>
       ) : (
-        <Card style={{ marginTop: spacing.md }}>
-          <Body>Tap the map around the farm. {draftShape.length} points so far.</Body>
+        <Card style={styles.panel}>
+          <H3>Draw the edge</H3>
+          <Body style={{ marginTop: spacing.sm }}>Zoom until you can see the land, then tap around it. {drawShape.length} points so far.</Body>
           {draftPoint ? <Caption style={{ marginTop: spacing.sm }}>Last tap saved on this phone.</Caption> : null}
           {error ? <Caption style={styles.error}>{error}</Caption> : null}
-          <View style={{ marginTop: spacing.lg }}>
-            <PrimaryButton label={busy ? 'Saving...' : 'Save boundary'} disabled={busy} onPress={() => void saveShape()} />
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            <PrimaryButton label={busy ? 'Saving...' : 'Save boundary'} disabled={busy} onPress={() => void saveShape('DRAWN', drawShape, null)} />
+            <Pressable onPress={() => setDrawShape((current) => current.slice(0, -1))} style={styles.small}>
+              <Text style={styles.smallText}>Undo last tap</Text>
+            </Pressable>
           </View>
         </Card>
       )}
+      </ScrollView>
     </AppShell>
+  );
+}
+
+function Hud({ label, value, tone }: { label: string; value: string; tone: 'good' | 'wait' | 'neutral' }) {
+  return (
+    <View style={styles.hudBox}>
+      <Caption>{label}</Caption>
+      <Text style={[styles.hudValue, tone === 'good' && styles.hudGood, tone === 'wait' && styles.hudWait]}>{value}</Text>
+    </View>
   );
 }
 
@@ -247,11 +366,25 @@ function Choice({ title, detail, onPress }: { title: string; detail: string; onP
 }
 
 const styles = StyleSheet.create({
+  studio: { flex: 1, paddingBottom: spacing.md },
+  sheet: { flex: 1 },
+  sheetContent: { paddingBottom: spacing.xl },
   modes: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
   mode: { flex: 1, minHeight: 42, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   modeOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   modeText: { color: colors.muted, fontWeight: '800' },
   modeTextOn: { color: '#fff' },
+  panel: { marginTop: spacing.md, flexGrow: 1 },
+  hud: { flexDirection: 'row', gap: spacing.sm },
+  hudBox: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.sm },
+  hudValue: { color: colors.ink, fontWeight: '800', fontSize: 16, marginTop: 2 },
+  hudGood: { color: colors.success },
+  hudWait: { color: colors.warning },
+  close: { marginTop: spacing.sm, color: colors.success, fontWeight: '800' },
+  row: { flexDirection: 'row', gap: spacing.sm },
+  small: { flex: 1, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  smallOff: { opacity: 0.4 },
+  smallText: { color: colors.ink, fontWeight: '800', fontSize: 12 },
   error: { marginTop: spacing.sm, color: colors.danger, fontWeight: '700' },
   choice: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg }
 });

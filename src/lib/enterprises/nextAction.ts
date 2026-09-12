@@ -15,10 +15,11 @@ export function nextRecordAction(enterprise?: Enterprise) {
 export function actionTitle(sector: FarmSector) {
   if (sector === 'Dairy') return 'Record milk';
   if (sector === 'Poultry') return 'Update flock';
-  if (sector === 'Livestock') return 'Update herd';
+  if (sector === 'Livestock' || sector === 'Beef' || sector === 'Goats & sheep' || sector === 'Pigs' || sector === 'Camels') return 'Update herd';
   if (sector === 'Aquaculture') return 'Update pond';
+  if (sector === 'Beekeeping') return 'Record honey';
   if (sector === 'Tea' || sector === 'Coffee') return 'Record delivery';
-  if (sector === 'Avocado' || sector === 'Macadamia') return 'Update trees';
+  if (sector === 'Avocado' || sector === 'Macadamia' || sector === 'Mango' || sector === 'Citrus' || sector === 'Cashew' || sector === 'Coconut') return 'Update trees';
   return `Record ${sector.toLowerCase()}`;
 }
 
@@ -39,7 +40,7 @@ export function activityTypes(sector?: FarmSector, stage?: CycleStage) {
       { label: 'Photo', route: '/add/record' }
     ];
   }
-  if (sector === 'Livestock') {
+  if (sector === 'Livestock' || sector === 'Beef' || sector === 'Goats & sheep' || sector === 'Pigs' || sector === 'Camels') {
     return [
       { label: 'Herd', route: '/add/production' },
       { label: 'Sale', route: '/add/sale' },
