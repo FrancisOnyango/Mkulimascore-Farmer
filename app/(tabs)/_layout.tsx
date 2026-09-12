@@ -20,7 +20,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={{ title: strings.tabs.home, tabBarAccessibilityLabel: 'Home tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'home' : 'home-outline'} focused={focused} /> }} />
       <Tabs.Screen name="farm" options={{ title: strings.tabs.farm, tabBarAccessibilityLabel: 'My Farm tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'leaf' : 'leaf-outline'} focused={focused} /> }} />
       <Tabs.Screen name="activity" options={{ title: strings.tabs.activity, tabBarAccessibilityLabel: 'Activity tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'create' : 'create-outline'} focused={focused} /> }} />
-      <Tabs.Screen name="insights" options={{ title: strings.tabs.insights, tabBarAccessibilityLabel: 'Insights tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'sunny' : 'sunny-outline'} focused={focused} /> }} />
+      <Tabs.Screen name="insights" options={{ title: 'Today', tabBarAccessibilityLabel: 'Today tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'sunny' : 'sunny-outline'} focused={focused} /> }} />
       <Tabs.Screen name="profile" options={{ title: strings.tabs.profile, tabBarAccessibilityLabel: 'Profile tab', tabBarIcon: ({ focused }) => <TabIcon name={focused ? 'person' : 'person-outline'} focused={focused} /> }} />
     </Tabs>
   );

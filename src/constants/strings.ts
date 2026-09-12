@@ -9,7 +9,7 @@ export const strings = {
     home: 'Home',
     farm: 'My Farm',
     activity: 'Activity',
-    insights: 'Insights',
+    insights: 'Today',
     profile: 'Profile'
   },
   welcome: {
@@ -72,7 +72,7 @@ export const strings = {
   },
   empty: {
     activity: 'No production records yet',
-    activityBody: 'Add your first milk, harvest or sales record to start building your farm history.',
+    activityBody: 'Add milk, harvest, eggs or a sale.',
     addActivity: 'Add activity'
   },
   help: {

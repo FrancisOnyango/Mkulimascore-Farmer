@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, H1 } from '@/components/Typography';
 import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
+import { AskBar } from '@/components/AskBar';
 import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
-import { strings } from '@/constants/strings';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { consentStatusLabel } from '@/lib/copy/status';
 
@@ -32,9 +32,11 @@ export default function Profile() {
 
   return (
     <AppShell>
-      <Caption>Profile</Caption>
-      <H1 style={{ marginTop: spacing.xs }}>{passport.displayName || 'Farmer'}</H1>
-      <Caption style={{ marginTop: spacing.xs }}>{passport.phoneMasked}{passport.location ? ` · ${passport.location}` : ''}</Caption>
+      <H1>{passport.displayName || 'Farmer'}</H1>
+      <Caption style={{ marginTop: spacing.xs }}>{passport.location || passport.phoneMasked}</Caption>
+      <View style={{ marginTop: spacing.lg }}>
+        <AskBar onPress={() => router.push('/ask')} />
+      </View>
 
       <FarmerSection title="Mkulima Passport" action="Open" onAction={() => router.push('/passport')}>
         <FarmerRow value="Identity, farm and enterprises" label="Your agricultural profile" onPress={() => router.push('/passport')} last />
@@ -65,10 +67,8 @@ export default function Profile() {
       </FarmerSection>
 
       <FarmerSection title="Help">
-        <FarmerRow value="Ask about this farm" label="Explain weather, records or next steps from data on this phone" onPress={() => router.push('/ask')} />
-        <FarmerRow value={strings.help.passport} label={strings.help.passportAnswer} />
-        <FarmerRow value={strings.help.loan} label={strings.help.loanAnswer} />
-        <FarmerRow value={strings.help.who} label={strings.help.whoAnswer} last />
+        <FarmerRow value="Passport" label="Your farm identity on this phone" onPress={() => router.push('/passport')} />
+        <FarmerRow value="Who can see this?" label="Only you, until you share" onPress={() => router.push('/consents')} last />
       </FarmerSection>
 
       <Pressable onPress={() => void signOut()} disabled={signingOut} accessibilityRole="button" accessibilityLabel="Sign out" style={({ pressed }) => [styles.logout, pressed && { opacity: 0.82 }]}>

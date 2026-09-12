@@ -3,22 +3,36 @@ import type { Enterprise } from '@/domain/types';
 export function enterpriseActions(sector: Enterprise['sector']) {
   if (sector === 'Dairy') {
     return [
-      { label: 'Record milk', route: '/add/production' },
-      { label: 'Milk sale', route: '/add/sale' },
+      { label: 'Milk', route: '/add/production' },
+      { label: 'Sale', route: '/add/sale' },
       { label: 'Feed', route: '/add/cost' }
     ];
   }
   if (sector === 'Poultry') {
     return [
-      { label: 'Flock update', route: '/add/production' },
+      { label: 'Flock', route: '/add/production' },
       { label: 'Sale', route: '/add/sale' },
       { label: 'Feed', route: '/add/cost' }
     ];
   }
+  if (sector === 'Livestock') {
+    return [
+      { label: 'Herd', route: '/add/production' },
+      { label: 'Sale', route: '/add/sale' },
+      { label: 'Cost', route: '/add/cost' }
+    ];
+  }
+  if (sector === 'Tea' || sector === 'Coffee') {
+    return [
+      { label: 'Delivery', route: '/add/production' },
+      { label: 'Sale', route: '/add/sale' },
+      { label: 'Input', route: '/add/cost' }
+    ];
+  }
   return [
-    { label: 'Production', route: '/add/production' },
+    { label: 'Harvest', route: '/add/production' },
     { label: 'Sale', route: '/add/sale' },
-    { label: 'Input cost', route: '/add/cost' }
+    { label: 'Input', route: '/add/cost' }
   ];
 }
 

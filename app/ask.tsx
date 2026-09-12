@@ -108,7 +108,7 @@ export default function AskMkulima() {
         <View style={styles.aiHeader}>
           <Eyebrow style={styles.headerEyebrow}>{settings.language === 'sw' ? 'AI salama kwa mkulima' : 'Farmer-safe AI'}</Eyebrow>
           <H2 style={styles.aiTitle}>Ask Mkulima</H2>
-          <Body style={styles.aiLead}>{settings.language === 'sw' ? 'Uliza kuhusu shamba, hali ya hewa, masoko, uzalishaji, gharama au hatua inayofuata.' : 'Ask about your farm, weather, markets, production, costs, records or next action. Answers use only farmer-safe data available on this phone unless a clearly labelled service response is returned.'}</Body>
+          <Body style={styles.aiLead}>{settings.language === 'sw' ? 'Uliza kuhusu shamba lako.' : 'Ask about your farm. Uses what is on this phone.'}</Body>
         </View>
 
         <View style={styles.stateRow} accessibilityRole="text">
@@ -117,7 +117,7 @@ export default function AskMkulima() {
 
         {askMessages.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Body style={styles.empty}>I can explain what is already on this phone — weather, records, production and next steps. I will not invent live prices, promise a loan, or reveal scoring rules.</Body>
+            <Body style={styles.empty}>I explain your saved farm data. I will not invent prices or promise a loan.</Body>
           </Card>
         ) : null}
 
@@ -233,7 +233,7 @@ export default function AskMkulima() {
             {sending ? <ActivityIndicator color="#fff" /> : <Ionicons name="send" size={20} color="#fff" />}
           </Pressable>
         </View>
-        <Caption style={styles.note}>Informational only: no lending decision, approval guarantee, institution-only score, or fabricated live claim. Check the source, freshness and limitation notes before acting.</Caption>
+        <Caption style={styles.note}>Not a loan decision. Check the source before you act.</Caption>
       </AppShell>
     </KeyboardAvoidingView>
   );

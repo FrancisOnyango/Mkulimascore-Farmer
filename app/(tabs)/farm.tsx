@@ -129,7 +129,7 @@ export default function Farms() {
             <Caption>{enterprise.productionMetric}</Caption>
             <Body style={styles.value}>{enterprise.productionValue}</Body>
           </Card>
-        )) : <EmptyState title="No enterprises yet" body="Dairy, maize, tea and other activities live here once you add them." action="Add activity" onAction={() => router.push({ pathname: '/add', params: { context: 'enterprise', farmId: primaryFarm?.id } })} />}
+        )) : <EmptyState title="Nothing growing yet" body="Add dairy, maize, tea, poultry or any other farm work." action="Add" onAction={() => router.push({ pathname: '/add', params: { context: 'enterprise', farmId: primaryFarm?.id } })} />}
       </View>
     </AppShell>
   );

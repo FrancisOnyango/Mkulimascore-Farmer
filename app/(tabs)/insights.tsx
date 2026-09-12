@@ -10,10 +10,10 @@ import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
 
 const flagshipCategories = [
-  { kind: 'weather', title: 'Weather', detail: 'Today and the days ahead for your farm' },
-  { kind: 'markets', title: 'Market', detail: 'Prices for your enterprises, when a source exists' },
-  { kind: 'enterprise', title: 'Farm', detail: 'Production and records from your enterprises' },
-  { kind: 'financial', title: 'Financial readiness', detail: 'What can support assessment if you choose to share' }
+  { kind: 'weather', title: 'Weather', detail: 'Rain and field days' },
+  { kind: 'markets', title: 'Market', detail: 'When a source exists' },
+  { kind: 'enterprise', title: 'Farm', detail: 'Your crops and animals' },
+  { kind: 'financial', title: 'Readiness', detail: 'If you choose to share' }
 ] as const;
 
 export default function Insights() {
@@ -24,8 +24,7 @@ export default function Insights() {
   const opportunities = getInsightOpportunities({ farms, insights, alerts });
   return (
     <AppShell>
-      <H1>Insights</H1>
-      <Body style={styles.lead}>Useful information for your farm, weather and market — only when we have it.</Body>
+      <H1>Today</H1>
 
       <View style={styles.switcher}>
         {farms.map((farm) => (
@@ -59,8 +58,8 @@ export default function Insights() {
       <Card style={styles.opportunityCard}>
         <View style={styles.opportunityHeader}>
           <View style={{ flex: 1 }}>
-            <Caption>Relevant next steps</Caption>
-            <H3 style={{ marginTop: spacing.xs }}>Opportunities for you</H3>
+            <Caption>Next</Caption>
+            <H3 style={{ marginTop: spacing.xs }}>For your farm</H3>
           </View>
           <Text style={styles.opportunityBadge}>{opportunities.length}</Text>
         </View>
@@ -75,7 +74,6 @@ export default function Insights() {
             </Pressable>
           ))}
         </View>
-        <Caption style={{ marginTop: spacing.lg }}>Only actions connected to your farms, enterprises and records are shown here.</Caption>
       </Card>
 
       <View style={styles.grid}>
@@ -91,13 +89,12 @@ export default function Insights() {
 
       <View style={{ gap: spacing.md, marginTop: spacing.xxl }}>
         {insights.length ? insights.map((insight) => <InsightCard key={insight.id} insight={insight} />) : (
-          <EmptyState title="Insights are getting ready" body="Add a farm location and a few records to unlock recommendations tailored to your season and enterprise." action="Go to My Farm" onAction={() => router.push('/(tabs)/farm')} />
+          <EmptyState title="Add a farm first" body="Weather and market appear when we have them." action="Farm" onAction={() => router.push('/(tabs)/farm')} />
         )}
       </View>
 
-      <Caption style={styles.note}>Environmental and enterprise insights are informational and depend on the quality and freshness of available records. They do not replace agronomic inspection or guarantee financing.</Caption>
       <Pressable onPress={() => router.push('/ask')} accessibilityRole="button" style={styles.askLink}>
-        <Caption>Need this explained in plain language? Ask about this farm.</Caption>
+        <Text style={styles.askText}>Ask Mkulima</Text>
       </Pressable>
     </AppShell>
   );
@@ -115,8 +112,8 @@ function getInsightOpportunities({
   const opportunities: { title: string; detail: string; route: string }[] = [];
   const attention = insights.find((insight) => insight.tone === 'attention');
   const unmapped = farms.find((farm) => !farm.mapped);
-  if (attention) opportunities.push({ title: attention.title, detail: 'Review this recommendation to strengthen your farm intelligence.', route: `/insights/${attention.kind}` });
-  if (unmapped) opportunities.push({ title: `Map ${unmapped.name}`, detail: 'Unlock location-based weather and area context.', route: `/farm/${unmapped.id}` });
+  if (attention) opportunities.push({ title: attention.title, detail: 'Saved for this farm.', route: `/insights/${attention.kind}` });
+  if (unmapped) opportunities.push({ title: `Place for ${unmapped.name}`, detail: 'A village name is enough.', route: `/farm/${unmapped.id}` });
   const alert = alerts.find((item) => item.category === 'evidence');
     if (alert && opportunities.length < 3) opportunities.push({ title: alert.title, detail: alert.detail, route: alert.deepLink ?? '/records' });
   return opportunities.slice(0, 3);
@@ -148,6 +145,6 @@ const styles = StyleSheet.create({
   supportGrid: { gap: spacing.md, marginTop: spacing.md },
   supportCard: { minHeight: 82, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   link: { color: colors.info, fontWeight: '800', marginTop: 'auto' },
-  note: { marginTop: spacing.xxxl, textAlign: 'center' },
-  askLink: { marginTop: spacing.md, minHeight: 44, justifyContent: 'center', alignItems: 'center' }
+  askLink: { marginTop: spacing.xl, minHeight: 52, borderRadius: radius.lg, backgroundColor: colors.brandDark, justifyContent: 'center', alignItems: 'center' },
+  askText: { color: '#fff', fontWeight: '800', fontSize: 16 }
 });

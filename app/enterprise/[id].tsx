@@ -76,7 +76,7 @@ export default function EnterpriseDetail() {
         )) : (
           <EmptyState
             title="No production records yet"
-            body="Add your first milk, harvest or sales record to start building this enterprise history."
+            body="Add milk, harvest, eggs or a sale."
             action="Add activity"
             onAction={() => router.push({ pathname: '/add', params: { context: 'enterprise', enterpriseId: enterprise.id, farmId: enterprise.farmId } })}
           />

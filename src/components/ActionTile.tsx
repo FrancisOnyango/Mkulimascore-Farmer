@@ -1,22 +1,63 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/constants/theme';
 
-export function ActionTile({ label, symbol, onPress }: { label: string; symbol: string; onPress: () => void }) {
+export function ActionTile({
+  icon,
+  label,
+  onPress,
+  tone = 'light'
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  tone?: 'light' | 'dark' | 'soft';
+}) {
+  const dark = tone === 'dark';
+  const soft = tone === 'soft';
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [styles.action, pressed && { opacity: 0.85 }]}>
-      <View style={[styles.icon, symbol.length > 1 && styles.wideIcon]}>
-        <Text style={styles.symbol}>{symbol}</Text>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [
+        styles.tile,
+        dark && styles.dark,
+        soft && styles.soft,
+        pressed && { opacity: 0.88 }
+      ]}
+    >
+      <View style={[styles.iconWrap, dark && styles.iconWrapDark]}>
+        <Ionicons name={icon} size={22} color={dark ? '#fff' : colors.brandDark} />
       </View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, dark && styles.labelDark]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  action: { flex: 1, minHeight: 104, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, justifyContent: 'space-between' },
-  icon: { minWidth: 34, height: 30, borderRadius: radius.sm, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: spacing.sm },
-  wideIcon: { backgroundColor: colors.infoSoft },
-  symbol: { color: colors.brandDark, fontSize: 12, fontWeight: '900' },
-  label: { color: colors.ink, fontSize: 12, lineHeight: 16, fontWeight: '800', marginTop: spacing.lg }
+  tile: {
+    width: '48%',
+    minHeight: 96,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    padding: spacing.md,
+    justifyContent: 'space-between'
+  },
+  dark: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
+  soft: { backgroundColor: colors.brandSoft, borderColor: '#C9E0D1' },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.brandSoft,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  iconWrapDark: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  label: { color: colors.ink, fontSize: 15, fontWeight: '800' },
+  labelDark: { color: '#fff' }
 });
