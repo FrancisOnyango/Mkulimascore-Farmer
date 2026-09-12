@@ -4,8 +4,9 @@ import crypto from 'node:crypto';
 const PORT = Number(process.env.PORT ?? 8787);
 const AUTH_MODE = process.env.AUTH_MODE ?? 'development';
 const AI_PROVIDER = process.env.AI_PROVIDER ?? 'local';
-const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4.1-mini';
+const OPENAI_BASE_URL = (process.env.XAI_BASE_URL ?? process.env.GROQ_BASE_URL ?? process.env.OPENAI_BASE_URL ?? (process.env.XAI_API_KEY ? 'https://api.x.ai/v1' : 'https://api.groq.com/openai/v1')).replace(/\/$/, '');
+const OPENAI_MODEL = process.env.XAI_MODEL ?? process.env.GROQ_MODEL ?? process.env.OPENAI_MODEL ?? (process.env.XAI_API_KEY ? 'grok-4.6' : 'llama-3.1-8b-instant');
+const OPENAI_API_KEY = process.env.XAI_API_KEY ?? process.env.GROQ_API_KEY ?? process.env.OPENAI_API_KEY;
 const JWKS_CACHE_MS = 10 * 60 * 1000;
 
 let jwksCache = null;
@@ -161,30 +162,37 @@ function normalizeContext(context) {
 }
 
 async function answerQuestion(question, context, history, requestId) {
-  if (AI_PROVIDER === 'local') return localAnswer(question, context, requestId);
-  if (AI_PROVIDER === 'openai') return openAiAnswer(question, context, history, requestId);
-  throw new Error('AI_NOT_CONFIGURED');
+  const local = localAnswer(question, context, requestId);
+  if (AI_PROVIDER === 'local' || !isProviderConfigured()) return local;
+  try {
+    return await rewriteWithLlm(question, local, history, requestId);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'AI_TIMEOUT') return local;
+    return local;
+  }
 }
 
-async function openAiAnswer(question, context, history, requestId) {
-  if (!process.env.OPENAI_API_KEY) throw new Error('AI_NOT_CONFIGURED');
+async function rewriteWithLlm(question, local, history, requestId) {
+  if (!OPENAI_API_KEY) throw new Error('AI_NOT_CONFIGURED');
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_TIMEOUT_MS ?? 15000));
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_TIMEOUT_MS ?? 12000));
   try {
     const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
         Accept: 'application/json'
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0.2,
+        max_tokens: 280,
         messages: [
           { role: 'system', content: systemPrompt() },
-          { role: 'user', content: JSON.stringify({ question, context, history: safeHistory(history) }) }
+          ...safeHistory(history),
+          { role: 'user', content: JSON.stringify({ question, draft: { text: local.text, intent: local.metadata.intent, next: local.metadata.recommendations.slice(0, 2) } }) }
         ]
       }),
       signal: controller.signal
@@ -192,20 +200,19 @@ async function openAiAnswer(question, context, history, requestId) {
     if (!response.ok) throw new Error(`AI_PROVIDER_${response.status}`);
     const payload = await response.json();
     const text = payload.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error('AI_EMPTY');
-    return buildReply({
+    if (!text || text.length > 900) return local;
+    return {
+      ...local,
       text,
-      intent: inferIntent(question),
-      confidence: 'medium',
-      requestId,
-      localOnly: false,
-      provider: 'openai-compatible',
-      model: OPENAI_MODEL,
-      latencyMs: Date.now() - startedAt,
-      sources: deriveSources(context),
-      recommendations: [],
-      followUps: defaultFollowUps(question)
-    });
+      metadata: {
+        ...local.metadata,
+        localOnly: false,
+        provider: providerLabel(),
+        model: OPENAI_MODEL,
+        requestId,
+        latencyMs: Date.now() - startedAt
+      }
+    };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') throw new Error('AI_TIMEOUT');
     throw error;
@@ -246,8 +253,8 @@ function localAnswer(question, context, requestId) {
   } else if (intent === 'costs') {
     const costRecords = context.records.filter((record) => /cost|expense|input|feed|fertili|seed|labou?r|transport/i.test(`${record.category ?? ''} ${record.title ?? ''}`));
     text = costRecords.length
-      ? `${costRecords.length} cost-related record${costRecords.length === 1 ? '' : 's'} are available. They help explain margin, but farmer-submitted costs are not verified unless the record status says so.`
-      : `No cost record was included for ${enterprise?.name ?? 'the main enterprise'}. Without input, labour and transport costs, the assistant cannot estimate a reliable margin.`;
+      ? `You have ${costRecords.length} cost-related record${costRecords.length === 1 ? '' : 's'} for ${enterprise?.name ?? 'your farm'}. That helps you see spend. It is not verified unless the record says so, and it does not prove profit.`
+      : `No cost record was included for ${enterprise?.name ?? 'the main enterprise'}. Without costs I cannot talk about a margin.`;
     recommendations.push('Add input, labour, feed, transport and service costs with date, amount and enterprise.');
     recommendations.push('Keep receipts or notes so corrections can be reviewed later.');
   } else if (intent === 'records') {
@@ -278,7 +285,7 @@ function localAnswer(question, context, requestId) {
     recommendations.push('Retry sync when connected and avoid duplicate submissions while items are pending.');
   } else if (intent === 'next_actions') {
     const next = attention?.action ?? attention?.explanation ?? (openRequest ? 'review the open document request' : unmappedFarm ? 'map the farm boundary' : context.records.length === 0 ? 'add one recent evidence record' : 'record the latest production or cost');
-    text = `The strongest next action is to ${lowerFirst(next)}. ${attention?.explanation ?? 'This keeps farmer-reported information current and easier to review.'}`;
+    text = `A useful next step is to ${lowerFirst(next)}. ${attention?.explanation ?? 'One small update with a date is enough for today.'}`;
     recommendations.push('Finish one update with date, amount, enterprise and source before starting another.');
     recommendations.push('Refresh data after syncing so the next recommendation uses the latest context.');
   } else {
@@ -294,7 +301,7 @@ function localAnswer(question, context, requestId) {
     requestId,
     localOnly: true,
     provider: 'local-free',
-    model: 'mkulima-local-reasoner-v2',
+    model: 'mkulima-local-reasoner-v3',
     latencyMs: 0,
     sources: deriveSources(context),
     recommendations,
@@ -322,7 +329,7 @@ function weatherAnswer(weatherItems) {
   const summary = window.length > 1
     ? ` Next ${window.length} updates: ${window.map((item) => `${item.farmName ?? 'farm'} ${item.rainProbabilityPct ?? '?'}% rain`).join('; ')}.`
     : '';
-  return `${today.farmName ?? 'Farm'}: ${today.condition ?? 'forecast available'}. Rain probability is ${today.rainProbabilityPct ?? 'unknown'}% with about ${today.rainMm ?? 'unknown'} mm expected.${today.temperatureLowC !== undefined && today.temperatureHighC !== undefined ? ` Temperature is ${today.temperatureLowC}-${today.temperatureHighC}C.` : ''} ${today.fieldActivityNote ?? 'Check field conditions before acting.'}${summary}`;
+  return `${today.farmName ?? 'Farm'}: ${String(today.condition ?? 'forecast available').toLowerCase()}. About ${today.rainProbabilityPct ?? 'unknown'}% chance of rain, around ${today.rainMm ?? 'unknown'} mm.${today.temperatureLowC !== undefined && today.temperatureHighC !== undefined ? ` ${today.temperatureLowC} to ${today.temperatureHighC}C.` : ''} ${today.fieldActivityNote ?? 'Check the field before you act.'}${summary}`;
 }
 
 function weatherRecommendations(weather) {
@@ -341,12 +348,13 @@ function weatherRecommendations(weather) {
 
 function systemPrompt() {
   return [
-    'You are Ask Mkulima, the farmer-facing assistant for MkulimaScore.',
-    'Answer only from the supplied farmer-safe context.',
-    'Use plain, farmer-friendly language.',
-    'Do not promise loans, reveal score formulas, invent prices/weather, or expose institution-only rules.',
-    'Always mention uncertainty, freshness, or source limitations when relevant.',
-    'Give practical next actions, not decorative analysis.'
+    'You are Ask Mkulima, a farm-records companion for Kenyan smallholders.',
+    'This is a continuing chat. Stay in the same voice. Do not repeat the previous answer.',
+    'Write 2 to 4 short sentences in plain Kenyan English.',
+    'Use ONLY the facts in DRAFT. Recent turns are for voice and follow-up only.',
+    'Never promise a loan or mention a score.',
+    'Do not use bullet lists, headings, or the words Source, Limitations, or Confidence.',
+    'Return only the answer the farmer should read.'
   ].join('\n');
 }
 
@@ -412,10 +420,10 @@ function hasAny(value, terms) {
 }
 
 function safeHistory(history) {
-  return safeArray(history).slice(-8).map((message) => ({
+  return safeArray(history).slice(-6).map((message) => ({
     role: message.role === 'assistant' ? 'assistant' : 'user',
-    content: String(message.text ?? '').slice(0, 1500)
-  }));
+    content: String(message.text ?? '').slice(0, 280)
+  })).filter((message) => message.content);
 }
 
 function safeArray(value) {
@@ -473,19 +481,22 @@ function base64UrlDecode(value) {
 }
 
 function providerLabel() {
+  if (AI_PROVIDER === 'local') return 'local-free';
+  if (AI_PROVIDER === 'xai' || OPENAI_BASE_URL.includes('x.ai')) return 'xai';
+  if (AI_PROVIDER === 'groq' || OPENAI_BASE_URL.includes('groq.com')) return 'groq';
   if (AI_PROVIDER === 'openai') return 'openai-compatible';
   return 'local-free';
 }
 
 function modelLabel() {
-  if (AI_PROVIDER === 'openai') return OPENAI_MODEL;
-  return 'mkulima-local-reasoner-v2';
+  if (AI_PROVIDER === 'local') return 'mkulima-local-reasoner-v3';
+  return OPENAI_MODEL;
 }
 
 function isProviderConfigured() {
   if (AI_PROVIDER === 'local') return true;
-  if (AI_PROVIDER === 'openai') return Boolean(process.env.OPENAI_API_KEY);
-  return false;
+  if (AI_PROVIDER === 'openai' || AI_PROVIDER === 'groq' || AI_PROVIDER === 'xai') return Boolean(OPENAI_API_KEY);
+  return Boolean(OPENAI_API_KEY);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

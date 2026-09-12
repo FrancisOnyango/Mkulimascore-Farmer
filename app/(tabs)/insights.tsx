@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
+import { AskBar } from '@/components/AskBar';
 import { Caption, H1, H3 } from '@/components/Typography';
 import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
@@ -21,6 +22,9 @@ export default function Insights() {
     <AppShell>
       <H1>Insights</H1>
       <Caption style={{ marginTop: spacing.sm }}>Weather, markets and profile — all from the farm, not a dashboard.</Caption>
+      <View style={{ marginTop: spacing.lg }}>
+        <AskBar onPress={() => router.push('/ask')} />
+      </View>
 
       {farms.length > 1 ? (
         <View style={styles.switcher}>

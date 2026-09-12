@@ -16,7 +16,7 @@ export function AskBar({ onPress }: { onPress: () => void }) {
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.title}>Ask Mkulima</Text>
-        <Text style={styles.detail}>Weather, records, next step</Text>
+        <Text style={styles.detail}>A question about this farm</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.faint} />
     </Pressable>

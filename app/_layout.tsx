@@ -67,7 +67,7 @@ export default function RootLayout() {
           <Stack.Screen name="records/[id]" options={{ title: 'Record' }} />
           <Stack.Screen name="insights/[kind]" options={{ title: 'Insights' }} />
           <Stack.Screen name="passport" options={{ title: 'Mkulima Passport' }} />
-          <Stack.Screen name="ask" options={{ title: 'Ask Mkulima' }} />
+          <Stack.Screen name="ask" options={{ title: 'Ask Mkulima', headerShown: false }} />
           <Stack.Screen name="financing" options={{ title: 'Financing readiness' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />

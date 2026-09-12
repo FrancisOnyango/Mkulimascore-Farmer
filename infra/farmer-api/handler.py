@@ -23,6 +23,7 @@ from typing import Any
 import boto3
 from boto3.dynamodb.conditions import Key
 
+from ask_llm import provider_info, rewrite_answer
 from market_intelligence import nearby_intelligence
 
 TABLE_NAME = os.environ["TABLE_NAME"]
@@ -66,13 +67,7 @@ def route(method: str, path: str, event: dict[str, Any]):
         return verify_otp(body(event))
 
     if path == "/api/v1/farmer/ask-mkulima/health" and method == "GET":
-        return respond(200, {
-            "status": "healthy",
-            "service": "ask-mkulima",
-            "provider": "local",
-            "model": "mkulima-farmer-reasoner-v1",
-            "policy": "farmer-safe-v1",
-        })
+        return respond(200, provider_info())
 
     if path.startswith("/api/v1/auth/") and CORE_API_URL:
         return proxy_core(method, path, event)
@@ -187,6 +182,7 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
     if not question:
         raise ValueError("QUESTION_REQUIRED")
     context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
     if not context.get("farms") and not context.get("passport"):
         context = {
             "passport": farmer["profile"],
@@ -202,9 +198,31 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             "pendingOutboxCount": 0,
         }
     lowered = question.lower()
-    if any(term in lowered for term in ("will i get a loan", "approve my loan", "score formula", "nitapata mkopo", "pre-approved")):
-        text = "I can explain your Mkulima Passport, records and next actions, but I cannot promise a loan, reveal score formulas, or show institution-only decision rules."
-        return respond(200, ask_payload("general", text, [], ["What can I safely update next?"], []))
+    if any(term in lowered for term in ("will i get a loan", "approve my loan", "score formula", "nitapata mkopo", "pre-approved", "preapproved")):
+        return respond(200, ask_payload(
+            "general",
+            "I can talk about your Passport, records and next step. I cannot promise a loan or show a score.",
+            [],
+            ["What should I do first?"],
+            [],
+        ))
+
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    built = draft if draft.get("text") else local_ask_draft(question, context)
+    text, llm = rewrite_answer(question, str(built.get("text") or ""), built, history)
+    return respond(200, ask_payload(
+        str(built.get("intent") or "general"),
+        text,
+        as_list(built.get("recommendations")),
+        as_list(built.get("followUps")),
+        as_list(built.get("sources")),
+        provider=str(llm.get("provider") or "local"),
+        model=str(llm.get("model") or "mkulima-farmer-reasoner-v3"),
+    ))
+
+
+def local_ask_draft(question: str, context: dict[str, Any]) -> dict[str, Any]:
+    lowered = question.lower()
     weather = first(context.get("weather"))
     market = first(context.get("markets"))
     enterprise = first(context.get("enterprises"))
@@ -212,47 +230,117 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
     records = as_list(context.get("records"))
     if any(term in lowered for term in ("weather", "rain", "mvua", "hewa", "forecast")):
         if weather:
-            answer = f"{weather.get('farmName') or 'Your farm'}: {weather.get('condition') or 'conditions saved'}. {weather.get('fieldActivityNote') or ''}".strip()
-            return respond(200, ask_payload("weather", answer, ["Confirm what you see in the field before acting."], ["How is my production looking?"], [{"label": "Farm weather forecast", "freshness": str(weather.get("updatedAt") or "Saved"), "limitation": "Forecasts can change."}]))
-        return respond(200, ask_payload("weather", "Farm-specific weather is not available yet because this phone has no usable farm location or cached forecast.", ["Add or map a farm location, then refresh weather."], ["How do I map my farm?"], []))
+            farm = weather.get("farmName") or "Your farm"
+            condition = weather.get("condition") or "the saved forecast"
+            note = weather.get("fieldActivityNote") or "Check the field before you spray or harvest."
+            return {
+                "intent": "weather",
+                "text": f"{farm}: {condition}. {note}",
+                "recommendations": ["Look at the field before you act. A forecast can change."],
+                "followUps": ["How is my production?"],
+                "sources": [{"label": "Farm weather forecast", "freshness": str(weather.get("updatedAt") or "Saved"), "limitation": "Forecasts can change."}],
+            }
+        return {
+            "intent": "weather",
+            "text": "I do not have weather for this farm yet. Mark the farm place, then ask again.",
+            "recommendations": ["Open My Farm and mark the farm place."],
+            "followUps": ["How do I map my farm?"],
+            "sources": [],
+        }
     if any(term in lowered for term in ("market", "price", "bei", "soko", "sell")):
         if market:
-            answer = f"{market.get('commodity')}: {market.get('observedPrice') or market.get('localRange') or 'no live price'}. {market.get('interpretation') or 'This is a reference, not a guaranteed offer.'}"
-            return respond(200, ask_payload("markets", answer, ["Confirm the final price with your buyer."], ["What sale record should I add?"], [{"label": "Market reference in this app", "freshness": str(market.get("updatedAt") or "Saved"), "limitation": "A reference price is not a guaranteed offer."}]))
-        return respond(200, ask_payload("markets", "Market intelligence is not available in the saved data yet.", ["Record a recent sale or buyer quote."], ["How do I record a sale?"], []))
+            commodity = market.get("commodity") or "Your crop"
+            price = market.get("observedPrice") or market.get("localRange") or "no latest reported price"
+            meaning = market.get("interpretation") or "This is a reported price, not what your buyer must pay."
+            return {
+                "intent": "markets",
+                "text": f"{commodity}: {price}. {meaning}",
+                "recommendations": ["Confirm the final price with your buyer."],
+                "followUps": ["What sale should I add?"],
+                "sources": [{"label": "Latest reported market price", "freshness": str(market.get("updatedAt") or "Saved"), "limitation": "A reported price is not a guaranteed offer."}],
+            }
+        return {
+            "intent": "markets",
+            "text": "I do not have a nearby market price yet. I will not invent one.",
+            "recommendations": ["Add a sale when you are paid."],
+            "followUps": ["How do I record a sale?"],
+            "sources": [],
+        }
     if any(term in lowered for term in ("production", "yield", "harvest", "maziwa", "mazao", "enterprise")):
         if enterprise:
-            answer = f"{enterprise.get('name') or 'Your enterprise'} is recorded at {enterprise.get('productionValue') or 'no production yet'} {enterprise.get('productionMetric') or ''}. {enterprise.get('summary') or ''}".strip()
-            return respond(200, ask_payload("production", answer, ["Record the latest amount, unit and date."], ["What costs should I track for this enterprise?"], [{"label": "Farmer Passport enterprise record", "freshness": "Saved on this phone", "limitation": "Production values are recorded data, not an independent measurement."}]))
-        return respond(200, ask_payload("production", "No enterprise production record is available yet.", ["Add your main enterprise and its latest production record."], ["How do I add production?"], []))
+            name = enterprise.get("name") or "Your enterprise"
+            value = enterprise.get("productionValue") or "no amount yet"
+            metric = enterprise.get("productionMetric") or ""
+            summary = enterprise.get("summary") or "Add today’s figure if that date is old."
+            return {
+                "intent": "production",
+                "text": f"{name} is recorded at {value} {metric}. {summary}".strip(),
+                "recommendations": ["Record the latest amount, unit and date."],
+                "followUps": ["What have I spent?"],
+                "sources": [{"label": "Production on this phone", "freshness": "Saved", "limitation": "This is what you recorded, not an independent measurement."}],
+            }
+        return {
+            "intent": "production",
+            "text": "No production is saved yet. Add what you grow or keep, then today’s amount.",
+            "recommendations": ["Add your main enterprise from Activity."],
+            "followUps": ["How do I add production?"],
+            "sources": [],
+        }
     if passport and any(term in lowered for term in ("passport", "profile", "loan", "finance", "wasifu")):
-        answer = f"{passport.get('readinessLabel') or 'Building your farm profile'}. Evidence status is {passport.get('evidenceStatus') or 'Added by you'}; record freshness is {passport.get('recordFreshness') or 'unknown'}."
-        return respond(200, ask_payload("passport", answer, ["Readiness is a data completeness view, not a lending decision."], ["Which records improve my Passport?"], [{"label": "Mkulima Passport", "freshness": str(passport.get("lastUpdated") or "Saved"), "limitation": "This is not a credit decision."}]))
+        return {
+            "intent": "passport",
+            "text": f"{passport.get('readinessLabel') or 'Your farm profile is still building'}. Records are {passport.get('recordFreshness') or 'not yet current'}. This is not a loan decision.",
+            "recommendations": ["Keep one recent production, sale or cost current."],
+            "followUps": ["What should I do first?"],
+            "sources": [{"label": "Mkulima Passport", "freshness": str(passport.get("lastUpdated") or "Saved"), "limitation": "This is not a credit decision."}],
+        }
     pending = int(context.get("pendingOutboxCount") or 0)
     if any(term in lowered for term in ("sync", "offline", "pending", "mtandao")):
-        answer = f"{pending} update{'s' if pending != 1 else ''} are waiting to sync." if pending else "No unsynchronized update is visible in the local queue."
-        return respond(200, ask_payload("sync", answer, ["Keep originals until a server confirms acceptance."], ["Why is an item waiting to sync?"], []))
+        text = f"{pending} update{'s' if pending != 1 else ''} are waiting on this phone." if pending else "Nothing is waiting to send from this phone."
+        return {
+            "intent": "sync",
+            "text": text,
+            "recommendations": ["Keep the original note until it sends."],
+            "followUps": ["What should I do first?"],
+            "sources": [],
+        }
     next_action = "record the latest production or cost" if enterprise else "add a farm and a recent record"
     if records:
         next_action = "review your newest record and add anything missing"
-    answer = f"A useful next action is to {next_action}. I will not invent missing weather, prices, or a loan outcome."
-    return respond(200, ask_payload("next_actions", answer, ["Complete one small update with its date before starting another."], ["What is my latest weather?"], []))
-
-
-def ask_payload(intent: str, answer: str, recommendations: list[str], follow_ups: list[str], sources: list[dict[str, str]]):
-    limitations = ["This is an informational view of farmer-safe records. It is not an agronomic inspection, price guarantee, credit decision, or proof that a record is verified."]
     return {
-        "text": f"{answer}\n\nSuggested next steps:\n- " + "\n- ".join(recommendations) + "\n\nLimitations: " + " ".join(limitations),
+        "intent": "next_actions",
+        "text": f"A useful next step is to {next_action}. I will not invent weather, a price, or a loan.",
+        "recommendations": ["Finish one small update with its date before starting another."],
+        "followUps": ["How is the weather for my farm?"],
+        "sources": [],
+    }
+
+
+def ask_payload(
+    intent: str,
+    answer: str,
+    recommendations: list[Any],
+    follow_ups: list[Any],
+    sources: list[Any],
+    provider: str = "local",
+    model: str = "mkulima-farmer-reasoner-v3",
+):
+    recommendations = [str(item) for item in recommendations if item]
+    follow_ups = [str(item) for item in follow_ups if item]
+    clean_sources = [item for item in sources if isinstance(item, dict)]
+    limitations = ["This uses farmer-safe records. It is not a farm visit, a price promise, or a loan decision."]
+    return {
+        "text": answer,
         "metadata": {
             "intent": intent,
-            "sources": sources,
+            "sources": clean_sources,
             "recommendations": recommendations,
             "followUps": follow_ups,
             "limitations": limitations,
-            "localOnly": False,
-            "confidence": "medium" if sources else "low",
-            "provider": "farmer-staging",
-            "model": "mkulima-farmer-reasoner-v1",
+            "localOnly": provider == "local",
+            "confidence": "medium" if clean_sources else "low",
+            "provider": provider,
+            "model": model,
         },
     }
 

@@ -73,7 +73,7 @@ describe('Ask Mkulima service', () => {
     assert.equal(body.metadata.intent, 'weather');
     assert.equal(body.metadata.localOnly, true);
     assert.equal(body.metadata.provider, 'local-free');
-    assert.equal(body.metadata.model, 'mkulima-local-reasoner-v2');
+    assert.equal(body.metadata.model, 'mkulima-local-reasoner-v3');
     assert.equal(body.metadata.requestId, 'test-weather');
     assert.ok(body.metadata.sources.some((source) => source.label === 'Farm weather context'));
   });
