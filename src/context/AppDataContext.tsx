@@ -48,6 +48,7 @@ import {
   listOutbox,
   listPersonalizedAlerts,
   listWeather,
+  listFarmerPlaces,
   saveWeather,
   saveMarket,
   setMarketChangeThresholdPct,
@@ -56,6 +57,7 @@ import {
 } from '@/db/database';
 import { fetchLiveWeather } from '@/lib/weather/liveWeather';
 import { fetchLiveMarketData } from '@/lib/markets/liveMarketData';
+import { listNearbyPlaces } from '@/lib/places/nearby';
 import { registerSevereWeatherAlerts } from '@/lib/notifications/weatherAlerts';
 
 interface AppData {
@@ -237,6 +239,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!trimmed) return;
     await initDb();
     const farmerMessage = await addAskMkulimaMessage({ role: 'farmer', text: trimmed });
+    const farm = data.farms.find((item) => item.id === selectedFarmId) ?? data.farms[0];
+    const extras = await listFarmerPlaces();
+    const places = listNearbyPlaces({
+      farm,
+      enterprises: data.enterprises.filter((item) => !farm || item.farmId === farm.id),
+      liveMarkets: data.markets,
+      extras
+    });
     const snapshot = {
       passport: data.passport,
       selectedFarmId,
@@ -252,7 +262,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       climate: data.climate,
       markets: data.markets,
       alerts: data.alerts,
-      activity: data.activity
+      activity: data.activity,
+      places
     };
     try {
       const reply = await createAskMkulimaClient().ask(trimmed, { ...snapshot, language: data.settings.language }, [...data.askMessages, farmerMessage]);

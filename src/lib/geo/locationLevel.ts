@@ -16,7 +16,7 @@ export function locationEvidence(farm?: Farm | null) {
     };
   }
   if (Number.isFinite(farm.latitude) && Number.isFinite(farm.longitude)) {
-    return { level: 1 as LocationLevel, label: 'Farm point', detail: 'Enough for weather and nearby markets.' };
+    return { level: 1 as LocationLevel, label: 'Farm point', detail: 'Enough for weather and nearby places.' };
   }
   return { level: 0 as LocationLevel, label: 'Place not set', detail: 'A point is enough to start.' };
 }

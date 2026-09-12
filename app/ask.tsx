@@ -34,6 +34,8 @@ function getContextualStarters({
   const suggestions: string[] = [];
   if (weather.length) suggestions.push('How is the weather for my farm?');
   if (markets.length) suggestions.push('What is the latest price near me?');
+  if (farms.some((farm) => farm.latitude != null)) suggestions.push('Where can I sell near my farm?');
+  suggestions.push('What fertilizer prices can you see?');
   if (enterprises.length) suggestions.push('How is my production?');
   if (records.some((record) => /cost|expense/i.test(`${record.category} ${record.title}`))) suggestions.push('What have I spent?');
   if (requests.some((request) => request.status === 'open')) suggestions.push('What record is still needed?');

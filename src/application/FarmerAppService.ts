@@ -10,6 +10,7 @@ import type {
 import type { OnboardingDraft } from '@/domain/types';
 import {
   addCorrectionSubmission,
+  addFarmerPlace,
   addCostSubmission,
   deleteEvidenceRecord,
   addEvidenceRecord,
@@ -101,6 +102,10 @@ export const FarmerAppService = {
 
   submitCorrection(input: Omit<CorrectionSubmission, 'id' | 'provenance' | 'occurredAt'>) {
     return addCorrectionSubmission(input);
+  },
+
+  submitPlace(input: Parameters<typeof addFarmerPlace>[0]) {
+    return addFarmerPlace(input);
   },
 
   submitEvidence(input: Omit<EvidenceRecord, 'id' | 'status' | 'verification' | 'serverId'>) {

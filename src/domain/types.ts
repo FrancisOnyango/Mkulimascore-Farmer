@@ -1,3 +1,5 @@
+import type { RankedPlace } from '@/domain/places';
+
 export type VerificationState = 'verified' | 'supported' | 'reported' | 'needs_review';
 export type SyncState = 'LOCAL' | 'PENDING' | 'SYNCING' | 'SYNCED' | 'RETRY' | 'FAILED' | 'CONFLICT';
 export type InsightTone = 'positive' | 'neutral' | 'attention';
@@ -299,6 +301,8 @@ export type AskMkulimaIntent =
   | 'next_actions'
   | 'climate'
   | 'alerts'
+  | 'chat'
+  | 'places'
   | 'general';
 
 export interface AskMkulimaSource {
@@ -338,6 +342,7 @@ export interface AskMkulimaContext {
   markets: MarketSignal[];
   alerts: PersonalizedAlert[];
   activity?: ActivityItem[];
+  places?: RankedPlace[];
 }
 
 export interface InstitutionRequest {

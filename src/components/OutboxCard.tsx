@@ -48,6 +48,7 @@ function operationLabel(operationType: string) {
   if (value.includes('evidence')) return 'Evidence upload';
   if (value.includes('correction')) return 'Correction request';
   if (value.includes('consent')) return 'Permission update';
+  if (value.includes('place')) return 'Place added';
   return 'Farm update';
 }
 

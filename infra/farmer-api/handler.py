@@ -25,6 +25,7 @@ from boto3.dynamodb.conditions import Key
 
 from ask_llm import provider_info, rewrite_answer
 from market_intelligence import nearby_intelligence
+from places_intelligence import find_duplicate, nearby_places
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
@@ -102,6 +103,10 @@ def route(method: str, path: str, event: dict[str, Any]):
         return market_nearby(farmer, event)
     if path == "/api/v1/farmer/markets" and method == "GET":
         return market_nearby(farmer, event)
+    if path == "/api/v1/farmer/places/nearby" and method == "GET":
+        return places_nearby(farmer, event)
+    if path.startswith("/api/v1/farmer/places/") and method == "GET":
+        return place_detail(path.rsplit("/", 1)[-1])
 
     if path.startswith("/api/v1/farmer/"):
         return respond(404, {"detail": "Not Found"})
@@ -150,6 +155,59 @@ def _market_nearby(farmer: dict[str, Any], event: dict[str, Any]):
     )
     payload["msid"] = farmer["msid"]
     return respond(200, payload)
+
+
+def places_nearby(farmer: dict[str, Any], event: dict[str, Any]):
+    params = event.get("queryStringParameters") or {}
+    try:
+        lat = float(params.get("lat") or params.get("latitude"))
+        lng = float(params.get("lng") or params.get("longitude"))
+    except (TypeError, ValueError):
+        farms = items(farmer["msid"], "FARM#")
+        farm = next((item for item in farms if item.get("latitude") is not None), None)
+        if not farm:
+            return respond(200, {
+                "status": "unavailable",
+                "sourceLabel": "Mkulima Places",
+                "disclaimer": "Mark a farm place first. Distance is from the farm, not the phone.",
+                "places": [],
+                "recommended": [],
+            })
+        lat = float(farm["latitude"])
+        lng = float(farm["longitude"])
+    try:
+        radius = float(params.get("radiusKm") or 25)
+    except ValueError:
+        radius = 25
+    payload = nearby_places(
+        lat,
+        lng,
+        params.get("commodity"),
+        params.get("filter") or params.get("category"),
+        radius,
+        extras=list_registry_places(),
+    )
+    payload["msid"] = farmer["msid"]
+    return respond(200, payload)
+
+
+def place_detail(place_id: str):
+    from places_intelligence import merge_places, seed_places, verification_label
+
+    registry = merge_places(seed_places(), list_registry_places())
+    place = next((item for item in registry if str(item.get("placeId")) == place_id), None)
+    if not place:
+        return respond(404, {"detail": "PLACE_NOT_FOUND"})
+    place["verificationLabel"] = verification_label(str(place.get("verification") or "DISCOVERED"))
+    return respond(200, {"place": place})
+
+
+def list_registry_places() -> list[dict[str, Any]]:
+    try:
+        result = table.query(KeyConditionExpression=Key("pk").eq("SYSTEM#PLACE"))
+    except Exception:
+        return []
+    return [unwrap(item) for item in result.get("Items") or []]
 
 
 def read_market_cache():
@@ -228,6 +286,55 @@ def local_ask_draft(question: str, context: dict[str, Any]) -> dict[str, Any]:
     enterprise = first(context.get("enterprises"))
     passport = context.get("passport") if isinstance(context.get("passport"), dict) else None
     records = as_list(context.get("records"))
+    farm = first(context.get("farms")) or {}
+    place = str(farm.get("location") or (passport or {}).get("location") or "your farm place")
+    farm_name = str(farm.get("name") or "your farm")
+    if any(term in lowered for term in ("hello", "habari", "jambo", "how are you", "good morning", "mambo")):
+        return {
+            "intent": "chat",
+            "text": f"Habari. I am looking at {farm_name} in {place}. Ask about weather, a nearby price, or what to update.",
+            "recommendations": [],
+            "followUps": ["How is the weather for my farm?", "What is the latest price near me?"],
+            "sources": [],
+            "facts": {"place": place, "farm": farm_name},
+        }
+    if any(term in lowered for term in ("where can i sell", "where to sell", "nearest market", "agrovet near", "where to buy", "collection centre", "veterinary", "vet near", "cooperative near")):
+        places = as_list(context.get("places"))
+        lines = []
+        for item in places[:3]:
+            if isinstance(item, dict):
+                lines.append(f"{item.get('name')} {item.get('distanceLabel') or ''} {item.get('category') or ''}".strip())
+        text = (
+            f"Near {place}: " + "; ".join(lines) + ". Listed places are not verified shops unless said so."
+            if lines
+            else f"Near {place}, I do not have a listed shop or market for that yet. I will not invent one. You can add the place you use."
+        )
+        return {
+            "intent": "places",
+            "text": text,
+            "recommendations": ["Add the market, agrovet or collection point you actually use."],
+            "followUps": ["What is the latest price near me?"],
+            "sources": [],
+            "facts": {"place": place, "nearbyPlaces": lines},
+        }
+    if any(term in lowered for term in ("fertil", "mbolea", "dap", "urea", "agrovet", "mbegu", "input price")):
+        nearby = ", ".join(
+            f"{item.get('commodity')} {item.get('observedPrice')}"
+            for item in as_list(context.get("markets"))[:3]
+            if isinstance(item, dict)
+        )
+        return {
+            "intent": "markets",
+            "text": (
+                f"Near {place}, KAMIS has crop prices, not fertilizer bags. I will not invent DAP or CAN."
+                + (f" Nearby reported produce: {nearby}." if nearby else "")
+                + " Save your agrovet receipt if you want me to remember it."
+            ),
+            "recommendations": ["Add the fertilizer receipt with amount and date."],
+            "followUps": ["What is the latest price near me?"],
+            "sources": [],
+            "facts": {"place": place, "inputPriceNote": "No Ministry fertilizer bag price."},
+        }
     if any(term in lowered for term in ("weather", "rain", "mvua", "hewa", "forecast")):
         if weather:
             farm = weather.get("farmName") or "Your farm"
@@ -485,6 +592,8 @@ def apply_side_effects(farmer: dict[str, Any], operation_type: str, payload: dic
                 "scopes": payload.get("scopes") or ["Farm profile"],
             },
         )
+    if "PLACE" in operation_type:
+        save_contributed_place(farmer, payload, now)
     if "EVIDENCE" in operation_type and payload.get("id"):
         put_child(farmer["msid"], f"RECORD#{payload['id']}", {**payload, "verification": "reported", "status": payload.get("status") or "received"})
     if "INSTITUTION" in operation_type:
@@ -507,6 +616,48 @@ def apply_side_effects(farmer: dict[str, Any], operation_type: str, payload: dic
             affiliations.append(name)
         profile["affiliations"] = affiliations
     save_profile(farmer["msid"], profile)
+
+
+def save_contributed_place(farmer: dict[str, Any], payload: dict[str, Any], now: str):
+    name = str(payload.get("name") or "").strip()
+    try:
+        lat = float(payload.get("latitude"))
+        lng = float(payload.get("longitude"))
+    except (TypeError, ValueError):
+        return
+    if not name:
+        return
+    extras = list_registry_places()
+    existing = find_duplicate(name, lat, lng, extras) or {}
+    place_id = str(existing.get("placeId") or payload.get("placeId") or payload.get("id") or uuid.uuid4())
+    sources = list(existing.get("sources") or [])
+    sources.append({"kind": "FARMER_CONTRIBUTED", "sourcePlaceId": place_id, "seenAt": now})
+    place = {
+        **existing,
+        "placeId": place_id,
+        "name": name,
+        "category": payload.get("category") or existing.get("category") or "inputs",
+        "subcategory": payload.get("subcategory") or payload.get("category") or "inputs",
+        "categories": payload.get("categories") or [payload.get("category") or "inputs"],
+        "latitude": lat,
+        "longitude": lng,
+        "phone": payload.get("phone") or existing.get("phone"),
+        "services": payload.get("services") or existing.get("services") or [],
+        "commodities": payload.get("commodities") or existing.get("commodities") or [],
+        "sources": sources,
+        "verification": existing.get("verification") or "DISCOVERED",
+        "confidence": existing.get("confidence") or "low",
+        "lastSeenAt": now,
+        "contributorCount": int(existing.get("contributorCount") or 0) + 1,
+    }
+    if place["contributorCount"] >= 3 and place["verification"] == "DISCOVERED":
+        place["verification"] = "COMMUNITY_CONFIRMED"
+        place["confidence"] = "medium"
+    put_child(farmer["msid"], f"PLACE#{place_id}", {**place, "verification": "DISCOVERED"})
+    item = to_item(place)
+    item["pk"] = "SYSTEM#PLACE"
+    item["sk"] = f"PLACE#{place_id}"
+    table.put_item(Item=item)
 
 
 def bootstrap(farmer: dict[str, Any]):

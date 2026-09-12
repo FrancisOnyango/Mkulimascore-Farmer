@@ -11,7 +11,8 @@ import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
 import type { Farm, FieldLook } from '@/domain/types';
-import { nearestMarkets } from '@/lib/markets/kenyaMarkets';
+import { PLACE_PIN_COLORS } from '@/domain/places';
+import { listNearbyPlaces } from '@/lib/places/nearby';
 import { locationEvidence } from '@/lib/geo/locationLevel';
 import { advancedFieldInsights } from '@/lib/eo/farmerCopy';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
@@ -36,9 +37,12 @@ export default function FarmDetail() {
   const farmEnterprises = enterprises.filter((enterprise) => enterprise.farmId === farm.id);
   const farmRecords = records.filter((record) => record.associatedFarmId === farm.id || (!record.associatedFarmId && farmEnterprises.some((enterprise) => record.associatedEnterpriseId === enterprise.id)));
   const farmWeather = weather.find((item) => item.farmId === farm.id);
-  const nearby = farm.latitude != null && farm.longitude != null
-    ? nearestMarkets({ latitude: farm.latitude, longitude: farm.longitude }, 2)
-    : [];
+  const nearby = listNearbyPlaces({
+    farm,
+    enterprises: farmEnterprises,
+    liveMarkets: markets,
+    limit: 4
+  });
   const nearest = nearby[0];
   const place = locationEvidence(farm);
   const advanced = advancedFieldInsights(farm, climate);
@@ -75,11 +79,12 @@ export default function FarmDetail() {
       <FarmPlaceMap
         farm={farm}
         basemap={basemap}
-        nearby={nearby.map((market) => ({
-          name: market.name,
-          latitude: market.latitude,
-          longitude: market.longitude,
-          distanceLabel: market.distanceLabel
+        nearby={nearby.map((place) => ({
+          name: place.name,
+          latitude: place.latitude,
+          longitude: place.longitude,
+          distanceLabel: place.distanceLabel,
+          color: PLACE_PIN_COLORS[place.category]
         }))}
         height={260}
       />
@@ -130,7 +135,7 @@ export default function FarmDetail() {
         </Card>
       ) : null}
 
-      <FarmerSection title="Around this farm" detail="Weather and the nearest market from your saved place.">
+      <FarmerSection title="Around this farm" detail="Weather and places ranked for this farm — from the saved place, not the phone." action="Nearby places" onAction={() => router.push({ pathname: '/places', params: { farmId: farm.id } })}>
         <FarmerRow
           value={farmWeather ? farmWeather.condition : 'Weather needs a farm place'}
           label={farmWeather ? `${farmWeather.rainProbabilityPct}% rain · ${farmWeather.temperatureLowC}–${farmWeather.temperatureHighC}°C` : 'Mark a point to use live weather.'}
@@ -143,11 +148,11 @@ export default function FarmDetail() {
         {nearest ? (
           <FarmerRow
             value={nearest.name}
-            label={`${nearest.distanceLabel} · ${nearest.town}`}
-            detail={`Closest of the markets we know. ${nearest.goods.slice(0, 3).join(', ')}.`}
-            status="By distance"
-            tone="good"
-            onPress={() => router.push('/insights/markets')}
+            label={`${nearest.distanceLabel}${nearest.town ? ` · ${nearest.town}` : ''}`}
+            detail={nearest.recommendedLine ?? nearest.priceLabel ?? nearest.services.slice(0, 3).join(' · ')}
+            status={nearest.recommended ? 'For this farm' : nearest.verificationLabel}
+            tone={nearest.recommended ? 'good' : 'neutral'}
+            onPress={() => router.push({ pathname: '/places/[id]', params: { id: nearest.placeId, farmId: farm.id } })}
             last
           />
         ) : null}

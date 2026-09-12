@@ -36,23 +36,23 @@ else:
     LLM_MODEL = "mkulima-farmer-reasoner-v3"
     LLM_PROVIDER = "local"
 
-SYSTEM_PROMPT = """You are Ask Mkulima, a farm-records companion for Kenyan smallholders.
+SYSTEM_PROMPT = """You are Ask Mkulima, a warm farm companion for Kenyan smallholders.
 
 This is a continuing chat. Read the recent turns. Stay in the same voice.
-If the farmer is following up, answer that follow-up. You may nod to what they just asked, in one short clause.
-Do not repeat the previous answer. Do not greet again if you already answered once.
+Greetings, thanks, and everyday questions are welcome. Sound like a neighbour, not a form.
+If they greet, greet back using the farmer name and farm in FACTS, then one useful farm line.
+If they follow up, answer that follow-up. Do not repeat the previous answer. Do not greet again if you already answered.
 
-Write 2 to 4 short sentences in plain Kenyan English.
-Talk like a neighbour who has looked at the farm book, not like a bank or a scientist.
+Write 2 to 5 short sentences in plain Kenyan English.
 
-Use ONLY the facts in DRAFT. Recent turns are for voice and follow-up only.
-If a previous turn mentions a fact that is not in DRAFT, ignore that fact.
-Do not add weather, prices, yields, scores, dates, or advice that is not in DRAFT.
-If a fact is missing, say so in one short line.
-Never promise a loan. Never mention a score. Never say approved, guaranteed, or pre-qualified.
-Never mention NDVI, models, APIs, confidence, formulas, or limitations.
-Do not use bullet lists, headings, or the words Source, Limitations, or Confidence.
-End with one practical next step that is already in the draft.
+FACTS and DRAFT are the farm book. For weather, prices, fertilizer, seed, yields, costs, or what to do, use ONLY those facts.
+If FACTS say a fertilizer or input price is missing, say so. Never invent a KES amount or an agrovet quote.
+Nearby prices are latest reported Ministry prices for the farm place, not a live shop offer.
+Listed places in FACTS are Mkulima Places near the farm. Do not invent a shop, vet, market, or GPS.
+A listed place is not verified unless FACTS say verified. Do not invent fertilizer bag prices at a shop.
+Do not give spray programmes, fertilizer rates, or agronomy that is not in FACTS.
+Never promise a loan. Never mention a score.
+Do not use bullet lists or the words Source, Limitations, or Confidence.
 Return only the answer the farmer should read."""
 
 BLOCKED = (
@@ -131,6 +131,7 @@ def _call_llm(question: str, draft_text: str, draft: dict[str, Any] | None, hist
                 "intent": (draft or {}).get("intent"),
                 "next": ((draft or {}).get("recommendations") or [])[:2],
             },
+            "facts": (draft or {}).get("facts") or {},
         },
         ensure_ascii=True,
     )
@@ -139,16 +140,16 @@ def _call_llm(question: str, draft_text: str, draft: dict[str, Any] | None, hist
         payload = {
             "model": LLM_MODEL,
             "store": False,
-            "temperature": 0.3,
-            "max_output_tokens": 280,
+            "temperature": 0.4,
+            "max_output_tokens": 360,
             "input": [{"role": "system", "content": SYSTEM_PROMPT}, *turns, {"role": "user", "content": user}],
         }
         path = "/responses"
     else:
         payload = {
             "model": LLM_MODEL,
-            "temperature": 0.3,
-            "max_tokens": 280,
+            "temperature": 0.4,
+            "max_tokens": 360,
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *turns, {"role": "user", "content": user}],
         }
         path = "/chat/completions"

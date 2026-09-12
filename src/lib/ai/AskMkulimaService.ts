@@ -54,6 +54,37 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   const alert = context.alerts.find((item) => item.severity === 'urgent') ?? context.alerts.find((item) => item.severity === 'attention') ?? context.alerts[0];
   const primaryEnterprise = context.enterprises.find((enterprise) => enterprise.primary) ?? context.enterprises[0];
   const farmName = context.farms[0]?.name ?? 'Your farm';
+  const talk = farmTalk(context);
+
+  if (isGreeting(question) && !hasAny(question, ['weather', 'rain', 'price', 'bei', 'fertil', 'mbolea'])) {
+    return {
+      intent: 'chat',
+      answer: `Habari${talk.firstName ? `, ${talk.firstName}` : ''}. I am looking at ${talk.farmLine}. ${talk.oneLiner} What do you want to know — weather, a nearby price, or what to update?`,
+      recommendations: [],
+      followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'What fertilizer cost have I saved?'],
+      sources: talk.sources
+    };
+  }
+
+  if (isThanks(question)) {
+    return {
+      intent: 'chat',
+      answer: `You are welcome${talk.firstName ? `, ${talk.firstName}` : ''}. I am still here for ${farmName}.`,
+      recommendations: [],
+      followUps: ['How is the weather for my farm?', 'What should I do first?'],
+      sources: talk.sources
+    };
+  }
+
+  if (hasAny(question, ['who are you', 'what are you', 'what can you', 'what do you do', 'help me ask', 'nani wewe'])) {
+    return {
+      intent: 'chat',
+      answer: `I am Ask Mkulima. I use the farm book for ${talk.farmLine}. I can talk about weather, nearby listed places, reported produce prices, what you recorded, and what to do next. I will not invent a fertilizer quote or promise a loan.`,
+      recommendations: [],
+      followUps: ['Where can I sell near my farm?', 'How is the weather for my farm?'],
+      sources: talk.sources
+    };
+  }
 
   if (hasAny(question, ['weather', 'rain', 'temperature', 'forecast', 'wind', 'mvua', 'hewa', 'joto', 'upepo', 'baridi'])) {
     if (weather) {
@@ -164,24 +195,52 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     };
   }
 
+  if (isPlaceQuestion(question)) {
+    return placesAnswer(question, context, talk, sources);
+  }
+
+  if (hasAny(question, ['fertil', 'mbolea', 'dap', 'urea', 'npk', 'c.a.n', ' can ', 'agrovet', 'mbegu', 'seed price', 'input price'])) {
+    const savedActivity = (context.activity ?? []).find((item) => /fertil|mbolea|dap|urea|npk|seed|input|feed/i.test(`${item.title} ${item.detail}`));
+    const savedRecord = context.records.find((record) => /fertil|mbolea|dap|urea|npk|seed|input|feed/i.test(`${record.category} ${record.title}`));
+    const savedLine = savedActivity ? `${savedActivity.title} (${savedActivity.detail})` : savedRecord?.title;
+    const savedAt = savedActivity?.occurredAt ?? savedRecord?.documentDate ?? '';
+    const nearbyCrops = context.markets.slice(0, 3).map((item) => `${item.commodity} ${item.observedPrice} at ${item.marketScope}`).join('; ');
+    const inputShop = (context.places ?? []).find((item) => item.category === 'inputs');
+    if (savedLine) sources.push(source('Input cost on this phone', savedAt, 'This is what you saved, not an agrovet quote.'));
+    if (context.markets[0]) sources.push(source('Latest reported market prices near the farm', context.markets[0].updatedAt, 'KAMIS reports crop and milk prices, not agrovet fertilizer bags.'));
+    const shopLine = inputShop
+      ? ` A listed input shop is ${inputShop.name}, ${inputShop.distanceLabel} — ${inputShop.verificationLabel.toLowerCase()}.`
+      : ' I do not have a listed agrovet near this farm yet.';
+    return {
+      intent: 'markets',
+      answer: savedLine
+        ? `Near ${talk.place}, I do not have a Ministry fertilizer quote. I will not invent DAP or CAN. The last input you saved is ${savedLine}.${shopLine}${nearbyCrops ? ` Nearby reported produce: ${nearbyCrops}.` : ''} Confirm the bag price at the shop.`
+        : `Near ${talk.place}, KAMIS has nearby crop prices, not fertilizer bags. I will not invent a DAP, CAN or seed quote.${shopLine}${nearbyCrops ? ` What I can see: ${nearbyCrops}.` : ''} Add the agrovet you use if it is missing.`,
+      recommendations: [inputShop ? 'Confirm the bag price at that shop. A listed place is not a price quote.' : 'Add the agrovet you use, then save the receipt with amount and date.'],
+      followUps: ['Where can I buy inputs near my farm?', 'What is the latest price near me?'],
+      sources
+    };
+  }
+
   if (hasAny(question, ['market', 'price', 'sell', 'buyer', 'selling', 'bei', 'soko', 'mnunuzi', 'kuuza'])) {
-    if (market) {
-      sources.push(source('Latest reported market price', market.updatedAt, 'A reported price is not what your buyer must pay.'));
-      const own = market.farmerRecordedPrice ? ` Your last saved sale was ${market.farmerRecordedPrice}.` : ' You have not saved your own sale price yet.';
+    const wanted = context.markets.find((item) => question.includes(item.commodity.toLocaleLowerCase())) ?? market;
+    if (wanted) {
+      sources.push(source('Latest reported market price near the farm', wanted.updatedAt, 'A reported price is not what your buyer or agrovet must charge.'));
+      const own = wanted.farmerRecordedPrice ? ` Your last saved sale was ${wanted.farmerRecordedPrice}.` : '';
       return {
         intent: 'markets',
-        answer: `${market.commodity} at ${market.marketScope}: ${market.observedPrice}. ${market.movementLabel}. ${market.interpretation}${own} Confirm the final price with your buyer.`,
+        answer: `Near ${talk.place}: ${wanted.commodity} at ${wanted.marketScope} is ${wanted.observedPrice}. ${wanted.movementLabel}. ${wanted.interpretation}${own} Confirm the final price at the market.`,
         recommendations: [
-          market.farmerRecordedPrice ? 'Compare this with your receipt, grade and quantity.' : 'Save your latest sale: price, quantity, buyer and date.'
+          wanted.farmerRecordedPrice ? 'Compare this with your receipt, grade and quantity.' : 'Save your latest sale: price, quantity, buyer and date.'
         ],
-        followUps: ['What did I sell last month?', 'How is my production?'],
+        followUps: ['What fertilizer cost have I saved?', 'How is my production?'],
         sources
       };
     }
-    return noData('markets', 'I do not have a nearby market price yet. I will not invent one.', ['Add a sale when you are paid.'], ['How do I record a sale?'], 'Market reference');
+    return noData('markets', `I do not have a nearby market price for ${talk.place} yet. I will not invent one.`, ['Add a sale when you are paid.'], ['How do I record a sale?'], 'Market reference');
   }
 
-  if (hasAny(question, ['cost', 'expense', 'spend', 'profit', 'margin', 'input', 'gharama', 'matumizi'])) {
+  if (hasAny(question, ['cost', 'expense', 'spend', 'profit', 'margin', 'gharama', 'matumizi'])) {
     const costRecords = context.records.filter((record) => /cost|expense|input/i.test(`${record.category} ${record.title}`));
     if (costRecords[0]) sources.push(source('Costs you saved', costRecords[0].documentDate, 'Costs are added by you until a partner confirms them.'));
     const who = primaryEnterprise ? primaryEnterprise.name : 'your farm';
@@ -291,11 +350,113 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
   }
 
   return {
-    intent: 'general',
-    answer: `Ask about the weather, a price, production, a cost, a record, or what to do first on ${farmName}. I use what you saved. I will not invent a price or a loan.`,
-    recommendations: ['Ask one thing at a time.'],
-    followUps: ['What should I do first?', 'How is the weather for my farm?'],
-    sources: context.passport ? [source('Mkulima Passport on this phone', context.passport.lastUpdated, 'I cannot see institution-only rules.')] : []
+    intent: 'chat',
+    answer: `${talk.firstName ? `${talk.firstName}, I ` : 'I '}heard you. For ${talk.farmLine}: ${talk.oneLiner} Ask me the weather, a nearby produce price, an input you saved, or what to do next. If it is not in this farm book, I will say so rather than guess.`,
+    recommendations: [],
+    followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'What should I do first?'],
+    sources: talk.sources
+  };
+}
+
+function isPlaceQuestion(question: string) {
+  return hasAny(question, [
+    'where can i sell',
+    'where to sell',
+    'where do i sell',
+    'nearest market',
+    'nearby market',
+    'where can i buy',
+    'where to buy',
+    'agrovet near',
+    'input shop',
+    'collection centre',
+    'collection center',
+    'milk collection',
+    'veterinary',
+    'vet near',
+    'nearest vet',
+    'cooperative near',
+    'sacco near',
+    'where is my cooperative',
+    'places near'
+  ]);
+}
+
+function placesAnswer(
+  question: string,
+  context: AskMkulimaContext,
+  talk: ReturnType<typeof farmTalk>,
+  sources: AskMkulimaSource[]
+): IntentResult {
+  const places = context.places ?? [];
+  const wantsInputs = hasAny(question, ['buy', 'input', 'agrovet', 'fertil', 'seed', 'mbegu', 'mbolea']);
+  const wantsVet = hasAny(question, ['vet', 'veterinary', 'animal', 'daktari']);
+  const wantsCoop = hasAny(question, ['coop', 'sacco', 'collection', 'milk']);
+  const wanted = places.filter((place) => {
+    if (wantsInputs) return place.category === 'inputs';
+    if (wantsVet) return place.category === 'services' || place.category === 'support';
+    if (wantsCoop) return place.category === 'cooperatives' || place.category === 'collection';
+    return place.category === 'markets' || place.category === 'collection' || place.category === 'cooperatives';
+  });
+  const shown = (wanted.length ? wanted : places).slice(0, 3);
+  sources.push(source('Mkulima Places near the farm', '', 'Listed is not the same as verified. Distance is from the farm place, not the phone.'));
+  if (!shown.length) {
+    return {
+      intent: 'places',
+      answer: `Near ${talk.place}, I do not have a listed ${wantsInputs ? 'input shop' : wantsVet ? 'vet' : wantsCoop ? 'collection point' : 'market'} yet. I will not invent one. Add the place you actually use.`,
+      recommendations: ['Open Near your farm and add the place name, type and GPS.'],
+      followUps: ['What is the latest price near me?', 'How is the weather for my farm?'],
+      sources
+    };
+  }
+  const lines = shown.map((place) => {
+    const extra = place.priceLabel ?? place.services.slice(0, 2).join(' · ');
+    return `${place.name}, ${place.distanceLabel}${extra ? `, ${extra}` : ''}`;
+  }).join('; ');
+  const honesty = shown.some((place) => place.verification === 'FIELD_VERIFIED' || place.verification === 'PARTNER_CONFIRMED')
+    ? 'A verified location has been confirmed. Others are listed only.'
+    : 'These are listed places, not verified shops.';
+  return {
+    intent: 'places',
+    answer: `Near ${talk.farmLine}: ${lines}. ${honesty} Confirm before you travel.`,
+    recommendations: ['Open the place for directions. Add a missing shop if you use one that is not listed.'],
+    followUps: ['What is the latest price near me?', 'What fertilizer cost have I saved?'],
+    sources
+  };
+}
+
+function farmTalk(context: AskMkulimaContext) {
+  const farm = context.farms[0];
+  const enterprise = context.enterprises.find((item) => item.primary) ?? context.enterprises[0];
+  const weather = context.weather[0];
+  const market = context.markets[0];
+  const firstName = (context.passport?.displayName ?? '').trim().split(/\s+/)[0] || '';
+  const place = farm?.location || context.passport?.location || 'your farm place';
+  const farmLine = [farm?.name || 'your farm', place].filter(Boolean).join(' in ');
+  const oneLiner = weather
+    ? `Today looks ${weather.condition.toLowerCase()} at the farm.`
+    : enterprise
+      ? `${enterprise.name} is recorded at ${enterprise.productionValue} ${enterprise.productionMetric}.`
+      : market
+        ? `A nearby reported price is ${market.commodity} at ${market.observedPrice}.`
+        : 'The farm book is still filling.';
+  const sources: AskMkulimaSource[] = [];
+  if (weather) sources.push(source('Farm weather forecast', weather.updatedAt, 'A forecast can change.'));
+  else if (context.passport) sources.push(source('Mkulima Passport on this phone', context.passport.lastUpdated, 'I use what you saved.'));
+  return { firstName, place, farmLine, oneLiner, sources };
+}
+
+function talkFacts(context: AskMkulimaContext) {
+  const talk = farmTalk(context);
+  return {
+    farmerName: talk.firstName,
+    farm: talk.farmLine,
+    place: talk.place,
+    enterprises: context.enterprises.slice(0, 4).map((item) => `${item.name} ${item.productionValue} ${item.productionMetric}`),
+    weather: context.weather[0] ? `${context.weather[0].condition}, ${context.weather[0].temperatureLowC}-${context.weather[0].temperatureHighC}C` : null,
+    nearbyPrices: context.markets.slice(0, 5).map((item) => `${item.commodity} ${item.observedPrice} at ${item.marketScope}`),
+    nearbyPlaces: (context.places ?? []).slice(0, 5).map((item) => `${item.name} ${item.distanceLabel} ${item.category} ${item.verificationLabel}${item.priceLabel ? ` ${item.priceLabel}` : ''}`),
+    inputPriceNote: 'KAMIS reports nearby crop and milk prices from the farm place. It does not report agrovet fertilizer bags. Do not invent DAP, CAN, urea or seed shop prices. Listed places are not verified shops unless verification says so.'
   };
 }
 
@@ -379,6 +540,7 @@ function mentionsRestrictedTopic(question: string) {
 }
 
 function resolveFollowUp(question: string, history: AskMkulimaMessage[]) {
+  if (isGreeting(question) || isThanks(question)) return question;
   const last = [...history].reverse().find((item) => item.role === 'assistant' && item.metadata?.intent);
   const intent = last?.metadata?.intent;
   if (!intent) return question;
@@ -404,8 +566,21 @@ function hasFreshTopic(question: string) {
     'map', 'mapped', 'ramani',
     'sync', 'offline', 'mtandao',
     'passport', 'profile', 'wasifu',
-    'sale', 'sold', 'niliuza'
+    'sale', 'sold', 'niliuza',
+    'fertil', 'mbolea', 'dap', 'urea', 'agrovet', 'mbegu',
+    'where can i sell', 'where to sell', 'where can i buy', 'nearest market', 'vet', 'cooperative', 'collection', 'places near'
   ]);
+}
+
+function isGreeting(question: string) {
+  return hasAny(question, ['hello', 'habari', 'jambo', 'sasa', 'good morning', 'good afternoon', 'good evening', 'how are you', 'mambo', 'niaje', 'salama', 'hey'])
+    || question === 'hi'
+    || question.startsWith('hi ')
+    || question.startsWith('hi,');
+}
+
+function isThanks(question: string) {
+  return hasAny(question, ['thank', 'thanks', 'asante', 'nashukuru']);
 }
 
 function scopeContext(context: AskMkulimaContext): AskMkulimaContext {
@@ -459,7 +634,8 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
             intent: draft.metadata.intent,
             recommendations: draft.metadata.recommendations,
             followUps: draft.metadata.followUps,
-            sources: draft.metadata.sources
+            sources: draft.metadata.sources,
+            facts: talkFacts(context)
           },
           requestId,
           audit: { action: 'ask_mkulima', client: 'mkulima-farmer', schemaVersion: 'v1' }
@@ -506,6 +682,16 @@ function projectSafeContext(context: AskMkulimaContext) {
     markets: context.markets.map((item) => ({ commodity: item.commodity, marketScope: item.marketScope, observedPrice: item.observedPrice, farmerRecordedPrice: item.farmerRecordedPrice, localRange: item.localRange, movementLabel: item.movementLabel, interpretation: item.interpretation, updatedAt: item.updatedAt })),
     alerts: context.alerts.map((item) => ({ category: item.category, title: item.title, detail: item.detail, severity: item.severity, relatedEntityLabel: item.relatedEntityLabel })),
     activity: (context.activity ?? []).slice(0, 12).map((item) => ({ type: item.type, title: item.title, detail: item.detail, occurredAt: item.occurredAt })),
+    places: (context.places ?? []).slice(0, 8).map((item) => ({
+      name: item.name,
+      category: item.category,
+      distanceLabel: item.distanceLabel,
+      verificationLabel: item.verificationLabel,
+      services: item.services.slice(0, 3),
+      commodities: item.commodities.slice(0, 4),
+      priceLabel: item.priceLabel,
+      recommendedLine: item.recommendedLine
+    })),
     pendingOutboxCount: context.outbox.filter((item) => item.state !== 'SYNCED').length
   };
 }

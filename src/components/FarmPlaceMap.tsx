@@ -7,7 +7,7 @@ import { colors, radius, spacing } from '@/constants/theme';
 
 export type MapStudioMode = 'view' | 'pin' | 'draw' | 'walk';
 export type MapPoint = { latitude: number; longitude: number };
-export type NearbyPin = { name: string; latitude: number; longitude: number; distanceLabel?: string };
+export type NearbyPin = { name: string; latitude: number; longitude: number; distanceLabel?: string; color?: string };
 
 type Props = {
   farm: Farm;
@@ -216,7 +216,7 @@ const MAP_HTML = `<!DOCTYPE html>
         bounds.push([state.latitude, state.longitude]);
       }
       (state.nearby || []).forEach(function (item) {
-        marker(item.latitude, item.longitude, item.name + (item.distanceLabel ? ' · ' + item.distanceLabel : ''), '#2F618D', 7).addTo(farmLayer);
+        marker(item.latitude, item.longitude, item.name + (item.distanceLabel ? ' · ' + item.distanceLabel : ''), item.color || '#2F618D', 7).addTo(farmLayer);
         bounds.push([item.latitude, item.longitude]);
       });
       if (state.fit) {

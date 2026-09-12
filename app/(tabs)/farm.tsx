@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppShell } from '@/components/AppShell';
@@ -7,13 +7,24 @@ import { Card } from '@/components/Card';
 import { StatusPill } from '@/components/StatusPill';
 import { SectionHeader } from '@/components/SectionHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { NearbyPlaces } from '@/components/NearbyPlaces';
 import { useAppData } from '@/context/AppDataContext';
 import { FarmPlaceMap } from '@/components/FarmPlaceMap';
+import { listFarmerPlaces } from '@/db/database';
+import type { AgriculturalPlace, PlaceFilter } from '@/domain/places';
+import { PLACE_PIN_COLORS } from '@/domain/places';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
+import { listNearbyPlaces } from '@/lib/places/nearby';
 import { colors, spacing } from '@/constants/theme';
 
 export default function Farms() {
-  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId, weather, climate, consents, passport, activity, markets } = useAppData();
+  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId, weather, climate, consents, passport, activity, markets, ready } = useAppData();
+  const [placeFilter, setPlaceFilter] = useState<PlaceFilter | null>(null);
+  const [farmerPlaces, setFarmerPlaces] = useState<AgriculturalPlace[]>([]);
+  useEffect(() => {
+    if (!ready) return;
+    void listFarmerPlaces().then(setFarmerPlaces);
+  }, [ready]);
   const primaryFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
   const farmEnterprises = enterprises.filter((enterprise) => enterprise.farmId === primaryFarm?.id);
   const farmRecords = records.filter((record) => !record.associatedFarmId || record.associatedFarmId === primaryFarm?.id);
@@ -32,6 +43,17 @@ export default function Farms() {
       activity
     })
     : null;
+  const nearbyPlaces = useMemo(
+    () => listNearbyPlaces({
+      farm: primaryFarm,
+      enterprises: farmEnterprises,
+      liveMarkets: markets,
+      extras: farmerPlaces,
+      filter: placeFilter,
+      limit: 8
+    }),
+    [farmEnterprises, farmerPlaces, markets, placeFilter, primaryFarm]
+  );
   const nextSteps = primaryFarm ? [
     !primaryFarm.latitude ? 'Mark farm place' : null,
     !primaryFarm.mapped ? 'Draw or walk the farm edge' : null,
@@ -66,7 +88,17 @@ export default function Farms() {
       {primaryFarm ? (
         <Card style={styles.visualCard} onPress={() => router.push(`/farm/${primaryFarm.id}`)}>
           {primaryFarm.latitude !== undefined && primaryFarm.longitude !== undefined ? (
-            <FarmPlaceMap farm={primaryFarm} height={200} />
+            <FarmPlaceMap
+              farm={primaryFarm}
+              height={200}
+              nearby={nearbyPlaces.slice(0, 6).map((place) => ({
+                name: place.name,
+                latitude: place.latitude,
+                longitude: place.longitude,
+                distanceLabel: place.distanceLabel,
+                color: PLACE_PIN_COLORS[place.category]
+              }))}
+            />
           ) : (
             <View style={styles.locationPanel}>
               <H3>Mark this farm place</H3>
@@ -107,6 +139,20 @@ export default function Farms() {
               <Metric label="Verified" value={`${verifiedRecords}`} />
             </View>
           </Card>
+
+          {primaryFarm.latitude != null && primaryFarm.longitude != null ? (
+            <>
+              <SectionHeader title="Near your farm" action="View all" onAction={() => router.push({ pathname: '/places', params: { farmId: primaryFarm.id } })} />
+              <Caption style={{ marginBottom: spacing.sm }}>Useful for this farm — not only the nearest pin.</Caption>
+              <NearbyPlaces
+                places={nearbyPlaces}
+                filter={placeFilter}
+                onFilter={setPlaceFilter}
+                farmId={primaryFarm.id}
+                compact
+              />
+            </>
+          ) : null}
         </>
       ) : null}
 

@@ -30,6 +30,7 @@ import type {
   SessionState,
   ProductionSubmission
 } from '@/domain/types';
+import type { AgriculturalPlace } from '@/domain/places';
 import { FARMER_CONSENT_VERSION } from '@/domain/types';
 import { centroid, GPS_AREA_ACCURACY_M, polygonAcres } from '@/lib/geo/geo';
 import { maskPhone } from '@/lib/phone/kenya';
@@ -167,6 +168,7 @@ export async function initDb() {
 
   await migrateOutboxContract(db);
   await migrateAskMkulimaMessages(db);
+  await migratePlaces(db);
 
   const seed = await db.getFirstAsync<{ value: string }>('SELECT value FROM app_metadata WHERE key = ?', ['seeded']);
   if (!seed) {
@@ -205,6 +207,16 @@ async function migrateAskMkulimaMessages(db: SQLite.SQLiteDatabase) {
   if (!columns.some((column) => column.name === 'metadata')) {
     await db.execAsync('ALTER TABLE ask_mkulima_messages ADD COLUMN metadata TEXT');
   }
+}
+
+async function migratePlaces(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS places (
+      id TEXT PRIMARY KEY NOT NULL,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
 }
 
 function normalizeOutboxState(state: string): OutboxItem['state'] {
@@ -984,6 +996,54 @@ export async function addCostSubmission(input: Omit<CostSubmission, 'id' | 'prov
     await enqueueOutbox(db, 'FARMER_COST_SUBMITTED', submission);
   });
   return submission;
+}
+
+export async function listFarmerPlaces(): Promise<AgriculturalPlace[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM places ORDER BY updated_at DESC');
+  return rows.map((row) => JSON.parse(row.data) as AgriculturalPlace);
+}
+
+export async function addFarmerPlace(input: {
+  name: string;
+  category: AgriculturalPlace['category'];
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  services?: string[];
+  commodities?: string[];
+  farmId?: string;
+}): Promise<AgriculturalPlace> {
+  const db = await getDb();
+  const id = Crypto.randomUUID();
+  const now = new Date().toISOString();
+  const place: AgriculturalPlace = {
+    placeId: id,
+    name: input.name.trim(),
+    category: input.category,
+    subcategory: input.category,
+    categories: [input.category],
+    latitude: input.latitude,
+    longitude: input.longitude,
+    phone: input.phone?.trim() || undefined,
+    services: input.services ?? [],
+    commodities: input.commodities ?? [],
+    sources: [{ kind: 'FARMER_CONTRIBUTED', sourcePlaceId: id, seenAt: now }],
+    verification: 'DISCOVERED',
+    confidence: 'low',
+    lastSeenAt: now
+  };
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('INSERT INTO places (id, data, updated_at) VALUES (?, ?, ?)', id, JSON.stringify(place), now);
+    await addActivity(db, 'place', 'Place added', `${place.name} — added by you, not yet verified`, now);
+    await enqueueOutbox(db, 'FARMER_PLACE_CONTRIBUTED', {
+      ...place,
+      farmId: input.farmId,
+      source: 'FARMER_APP',
+      provenance: 'FARMER_REPORTED'
+    });
+  });
+  return place;
 }
 
 export async function addCorrectionSubmission(input: Omit<CorrectionSubmission, 'id' | 'provenance' | 'occurredAt'>) {
