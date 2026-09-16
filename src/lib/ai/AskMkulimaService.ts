@@ -23,8 +23,39 @@ export interface AskMkulimaReply {
   metadata: AskMkulimaMessageMetadata;
 }
 
+export type AskMkulimaAskOptions = {
+  imageDataUrl?: string;
+  attachmentId?: string;
+};
+
+export type AskActionConfirmPayload = {
+  type: string;
+  label?: string;
+  farmId?: string;
+  summary?: string;
+  field?: string;
+  proposedValue?: string;
+  reason?: string;
+  kind?: string;
+  narrative?: string;
+  attachmentId?: string;
+  alertId?: string;
+  impactType?: string;
+  question?: string;
+  confirmed?: boolean;
+};
+
+export type AskAttachmentResult = {
+  id: string;
+  status: string;
+  provisional?: boolean;
+  note?: string;
+};
+
 export interface AskMkulimaClient {
-  ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[]): Promise<AskMkulimaReply>;
+  ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[], options?: AskMkulimaAskOptions): Promise<AskMkulimaReply>;
+  confirmAction?(actionId: string, payload: AskActionConfirmPayload): Promise<{ status: string; note?: string }>;
+  registerAttachment?(input: { farmId?: string; contentType?: string; byteSize?: number; purpose?: string }): Promise<AskAttachmentResult | null>;
 }
 
 const refusal = 'I can talk about your farm, records and Passport. I cannot promise a loan or show a score.';
@@ -43,10 +74,30 @@ type IntentResult = {
 };
 
 class DemoAskMkulimaClient implements AskMkulimaClient {
-  async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[] = []): Promise<AskMkulimaReply> {
+  async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[] = [], options?: AskMkulimaAskOptions): Promise<AskMkulimaReply> {
     const scoped = scopeContext(context);
     const language = detectAskLanguage(question, scoped.language);
     const normalized = resolveFollowUp(normalizeQuestion(question), history);
+    if (options?.imageDataUrl || options?.attachmentId) {
+      return makeReply(
+        'I can look at a photo when you are online with the live assistant. Offline I will not invent a diagnosis from an image. Describe what you see, how widespread it is, and whether animals or people are affected.',
+        'alerts',
+        ['Take the photo when you have a signal, or ask an officer to look with you.'],
+        ['How is my production?', 'How is the weather for my farm?'],
+        [source('Photo assessment', '', 'A photo alone cannot confirm the cause.')],
+        ['Photo findings stay provisional until a field check.'],
+        'medium',
+        language,
+        {
+          risk: 'medium',
+          actionCards: [
+            { type: 'report_pest_or_disease', label: 'Save provisional incident' },
+            { type: 'escalate_to_officer', label: 'Ask an officer' }
+          ],
+          requiresConfirmation: true
+        }
+      );
+    }
     if (mentionsRestrictedTopic(normalized)) {
       return makeReply(refusal, 'general', [], ['How is the weather for my farm?', 'How is my production?'], [], ['Loan and score rules stay with the institution.'], undefined, language);
     }
@@ -61,6 +112,14 @@ class DemoAskMkulimaClient implements AskMkulimaClient {
     }
     const result = routeQuestion(normalized, scoped);
     return makeReply(result.answer, result.intent, result.recommendations, result.followUps, result.sources, result.limitations, result.confidence, language, { risk: result.risk ?? risk, draft: result.draft });
+  }
+
+  async confirmAction(_actionId: string, _payload: AskActionConfirmPayload) {
+    return { status: 'ACCEPTED', note: 'Saved on this phone as provisional until you sync.' };
+  }
+
+  async registerAttachment() {
+    return null;
   }
 }
 
@@ -694,7 +753,12 @@ function noData(intent: AskMkulimaIntent, answer: string, recommendations: strin
   return { intent, answer, recommendations, followUps, sources: [{ label: sourceLabel, freshness: 'Nothing saved yet', limitation: 'I will not invent missing farm data.' }] };
 }
 
-function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], language: 'en' | 'sw' = 'en', extras?: { draft?: AskDraft; risk?: AskRisk }): AskMkulimaReply {
+function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: string[], followUps: string[], sources: AskMkulimaSource[], limitations: string[] = [], confidence?: AskMkulimaMessageMetadata['confidence'], language: 'en' | 'sw' = 'en', extras?: {
+  draft?: AskDraft;
+  risk?: AskRisk;
+  actionCards?: AskMkulimaMessageMetadata['actionCards'];
+  requiresConfirmation?: boolean;
+}): AskMkulimaReply {
   const text = localizeAskText(answer.replace(/\s+/g, ' ').trim(), language);
   const draft = extras?.draft && language === 'sw'
     ? { ...extras.draft, prompt: localizeAskText(extras.draft.prompt, 'sw') }
@@ -717,7 +781,9 @@ function makeReply(answer: string, intent: AskMkulimaIntent, recommendations: st
       model: 'mkulima-local-reasoner-v3',
       latencyMs: 0,
       risk: extras?.risk,
-      draft
+      draft,
+      actionCards: extras?.actionCards,
+      requiresConfirmation: extras?.requiresConfirmation
     }
   };
 }
@@ -829,19 +895,29 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
 
   constructor(private readonly baseUrl: string) {}
 
-  async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[]): Promise<AskMkulimaReply> {
+  async ask(question: string, context: AskMkulimaContext, history: AskMkulimaMessage[], options?: AskMkulimaAskOptions): Promise<AskMkulimaReply> {
     if (mentionsRestrictedTopic(normalizeQuestion(question))) {
       return makeReply(refusal, 'general', [], ['How is the weather for my farm?', 'How is my production?'], [], ['Loan and score rules stay with the institution.'], undefined, context.language);
     }
-    const draft = await this.fallback.ask(question, context, history);
-    if (draft.metadata.risk === 'high' || draft.metadata.draft || draft.metadata.intent === 'draft') return draft;
+    const hasImage = Boolean(options?.imageDataUrl || options?.attachmentId);
+    const draft = await this.fallback.ask(question, context, history, options);
+    if (!hasImage && (draft.metadata.risk === 'high' || draft.metadata.draft || draft.metadata.intent === 'draft')) return draft;
     const token = await getAccessToken();
     const endpoint = getAskMkulimaEndpoint(this.baseUrl);
     if (!token || !endpoint) return draft;
 
+    const farm = context.farms[0];
+    const earlyWarnings = rankActiveWarnings(buildEarlyWarnings({
+      farm,
+      enterprises: context.enterprises.filter((item) => !farm || item.farmId === farm.id),
+      weather: context.weather[0],
+      exposure: farm?.exposure,
+      language: detectAskLanguage(question, context.language)
+    })).slice(0, 4);
+
     const requestId = Crypto.randomUUID();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18_000);
+    const timeout = setTimeout(() => controller.abort(), hasImage ? 45_000 : 22_000);
     const startedAt = Date.now();
     try {
       const response = await fetch(endpoint, {
@@ -850,7 +926,29 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
         body: JSON.stringify({
           question,
           language: detectAskLanguage(question, context.language),
-          context: projectSafeContext(context, question),
+          hasAttachment: hasImage,
+          attachmentId: options?.attachmentId,
+          imageDataUrl: options?.imageDataUrl?.startsWith('data:image/') ? options.imageDataUrl.slice(0, 1_800_000) : undefined,
+          context: {
+            ...projectSafeContext(context, question),
+            farms: context.farms.slice(0, 2).map((item) => ({
+              id: item.id,
+              name: item.name,
+              location: item.location,
+              latitude: item.latitude,
+              longitude: item.longitude,
+              mapped: item.mapped,
+              exposure: item.exposure,
+              verification: item.verification
+            })),
+            enterprises: context.enterprises.slice(0, 4),
+            weather: context.weather.slice(0, 1),
+            markets: context.markets.slice(0, 6),
+            alerts: context.alerts.slice(0, 4),
+            places: (context.places ?? []).slice(0, 5),
+            activity: (context.activity ?? []).slice(0, 6),
+            earlyWarnings
+          },
           history: history.slice(-8).map((item) => ({
             role: item.role === 'assistant' ? 'assistant' : 'farmer',
             text: item.text.slice(0, 320),
@@ -865,7 +963,7 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
             facts: talkFacts(context, question)
           },
           requestId,
-          audit: { action: 'ask_mkulima', client: 'mkulima-farmer', schemaVersion: 'v1' }
+          audit: { action: 'ask_mkulima', client: 'mkulima-farmer', schemaVersion: 'v2-orchestrator' }
         }),
         signal: controller.signal
       });
@@ -881,9 +979,15 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
           followUps: payload.metadata?.followUps?.length ? payload.metadata.followUps : draft.metadata.followUps,
           sources: payload.metadata?.sources?.length ? payload.metadata.sources : draft.metadata.sources,
           recommendations: payload.metadata?.recommendations?.length ? payload.metadata.recommendations : draft.metadata.recommendations,
+          actionCards: payload.metadata?.actionCards ?? [],
+          basis: payload.metadata?.basis,
+          toolsUsed: payload.metadata?.toolsUsed,
+          orchestrator: payload.metadata?.orchestrator,
           localOnly: payload.metadata?.localOnly ?? false,
           requestId: payload.metadata?.requestId ?? requestId,
-          latencyMs: payload.metadata?.latencyMs ?? Date.now() - startedAt
+          latencyMs: payload.metadata?.latencyMs ?? Date.now() - startedAt,
+          // Never surface raw model ids to the farmer UI
+          model: undefined
         }
       };
     } catch {
@@ -891,6 +995,34 @@ class ProductionAskMkulimaClient implements AskMkulimaClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async confirmAction(actionId: string, payload: AskActionConfirmPayload) {
+    const token = await getAccessToken();
+    if (!token) return { status: 'AUTH_REQUIRED', note: 'Sign in to confirm this action live.' };
+    const response = await fetch(`${this.baseUrl}/api/v1/ask/actions/${encodeURIComponent(actionId)}/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ ...payload, confirmed: payload.confirmed ?? true })
+    });
+    if (!response.ok) {
+      return { status: 'FAILED', note: 'Could not confirm that action. Nothing was overwritten.' };
+    }
+    const body = await response.json() as { status?: string; note?: string };
+    return { status: body.status ?? 'ACCEPTED', note: body.note };
+  }
+
+  async registerAttachment(input: { farmId?: string; contentType?: string; byteSize?: number; purpose?: string }) {
+    const token = await getAccessToken();
+    if (!token) return null;
+    const response = await fetch(`${this.baseUrl}/api/v1/ask/attachments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(input)
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as { attachment?: AskAttachmentResult };
+    return body.attachment ?? null;
   }
 }
 

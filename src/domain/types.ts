@@ -339,6 +339,11 @@ export interface AskMkulimaSource {
   limitation?: string;
 }
 
+export interface AskActionCard {
+  type: string;
+  label: string;
+}
+
 export interface AskMkulimaMessageMetadata {
   intent: AskMkulimaIntent;
   sources: AskMkulimaSource[];
@@ -353,6 +358,12 @@ export interface AskMkulimaMessageMetadata {
   latencyMs?: number;
   risk?: import('@/domain/ask').AskRisk;
   draft?: import('@/domain/ask').AskDraft;
+  basis?: string[];
+  actionCards?: AskActionCard[];
+  requiresConfirmation?: boolean;
+  escalation?: { required?: boolean; reason?: string | null };
+  toolsUsed?: string[];
+  orchestrator?: string;
 }
 
 export interface AskMkulimaContext {

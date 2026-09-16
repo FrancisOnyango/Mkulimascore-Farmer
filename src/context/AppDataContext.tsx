@@ -22,7 +22,7 @@ import type {
   PersonalizedAlert
 } from '@/domain/types';
 import { FarmerAppService } from '@/application/FarmerAppService';
-import { createAskMkulimaClient } from '@/lib/ai/AskMkulimaService';
+import { createAskMkulimaClient, type AskActionConfirmPayload, type AskMkulimaAskOptions } from '@/lib/ai/AskMkulimaService';
 import { localizeAskText } from '@/lib/i18n/askLanguage';
 import { createFarmerApi } from '@/lib/api/ApiClient';
 import { isLiveBackend } from '@/lib/api/mode';
@@ -90,8 +90,9 @@ interface AppData {
   selectedFarmId: string | null;
   setSelectedFarmId: (farmId: string) => void;
   refresh: () => Promise<void>;
-  askMkulima: (question: string, options?: { screen?: AskScreen; farmId?: string }) => Promise<void>;
+  askMkulima: (question: string, options?: { screen?: AskScreen; farmId?: string } & AskMkulimaAskOptions) => Promise<void>;
   confirmAskDraft: (draft: AskDraft) => Promise<void>;
+  confirmAskAction: (card: { type: string; label: string }, options?: { farmId?: string; question?: string }) => Promise<void>;
   dismissAskDraft: () => Promise<void>;
   deleteAskMessage: (id: string) => Promise<void>;
   clearAskConversation: () => Promise<void>;
@@ -101,7 +102,7 @@ interface AppData {
 }
 
 const Context = createContext<AppData | null>(null);
-type AppDataState = Omit<AppData, 'refresh' | 'askMkulima' | 'confirmAskDraft' | 'dismissAskDraft' | 'selectedFarmId' | 'setSelectedFarmId' | 'deleteAskMessage' | 'clearAskConversation' | 'saveLanguage' | 'saveMarketChangeThreshold' | 'saveSevereWeatherAlerts'>;
+type AppDataState = Omit<AppData, 'refresh' | 'askMkulima' | 'confirmAskDraft' | 'confirmAskAction' | 'dismissAskDraft' | 'selectedFarmId' | 'setSelectedFarmId' | 'deleteAskMessage' | 'clearAskConversation' | 'saveLanguage' | 'saveMarketChangeThreshold' | 'saveSevereWeatherAlerts'>;
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppDataState>({
@@ -237,7 +238,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const askMkulima = useCallback(async (question: string, options?: { screen?: AskScreen; farmId?: string }) => {
+  const askMkulima = useCallback(async (question: string, options?: { screen?: AskScreen; farmId?: string } & AskMkulimaAskOptions) => {
     const trimmed = question.trim();
     if (!trimmed) return;
     await initDb();
@@ -271,7 +272,12 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       places
     };
     try {
-      const reply = await createAskMkulimaClient().ask(trimmed, { ...snapshot, language: data.settings.language }, [...data.askMessages, farmerMessage]);
+      const reply = await createAskMkulimaClient().ask(
+        trimmed,
+        { ...snapshot, language: data.settings.language },
+        [...data.askMessages, farmerMessage],
+        { imageDataUrl: options?.imageDataUrl, attachmentId: options?.attachmentId }
+      );
       await addAskMkulimaMessage({ role: 'assistant', text: reply.text, metadata: reply.metadata });
       await refresh();
     } catch (error) {
@@ -280,6 +286,34 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
   }, [data.activity, data.alerts, data.askMessages, data.climate, data.consents, data.enterprises, data.farms, data.financing, data.insights, data.markets, data.outbox, data.passport, data.records, data.requests, data.settings.language, data.weather, refresh, selectedFarmId]);
+
+  const confirmAskAction = useCallback(async (card: { type: string; label: string }, options?: { farmId?: string; question?: string }) => {
+    await initDb();
+    const client = createAskMkulimaClient();
+    const actionId = `ask-${Date.now()}`;
+    const farmId = options?.farmId ?? selectedFarmId ?? data.farms[0]?.id;
+    const payload: AskActionConfirmPayload = {
+      type: card.type,
+      label: card.label,
+      farmId: farmId ?? undefined,
+      summary: card.label,
+      question: options?.question,
+      confirmed: true
+    };
+    const result = client.confirmAction
+      ? await client.confirmAction(actionId, payload)
+      : { status: 'ACCEPTED', note: 'Saved as provisional.' };
+    await addAskMkulimaMessage({
+      role: 'assistant',
+      text: localizeAskText(
+        result.status === 'ACCEPTED'
+          ? 'Noted as provisional. Nothing verified was overwritten. You can finish this from Activity or with an officer.'
+          : result.note || 'I could not confirm that action yet.',
+        data.settings.language
+      )
+    });
+    await refresh();
+  }, [data.farms, data.settings.language, refresh, selectedFarmId]);
 
   const confirmAskDraft = useCallback(async (draft: AskDraft) => {
     await initDb();
@@ -383,8 +417,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   const activeFarmId = selectedFarmId ?? data.farms[0]?.id ?? null;
   const value = useMemo(
-    () => ({ ...data, selectedFarmId: activeFarmId, setSelectedFarmId, refresh, askMkulima, confirmAskDraft, dismissAskDraft, deleteAskMessage, clearAskConversation, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts }),
-    [activeFarmId, askMkulima, clearAskConversation, confirmAskDraft, data, deleteAskMessage, dismissAskDraft, refresh, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts]
+    () => ({ ...data, selectedFarmId: activeFarmId, setSelectedFarmId, refresh, askMkulima, confirmAskDraft, confirmAskAction, dismissAskDraft, deleteAskMessage, clearAskConversation, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts }),
+    [activeFarmId, askMkulima, clearAskConversation, confirmAskAction, confirmAskDraft, data, deleteAskMessage, dismissAskDraft, refresh, saveLanguage, saveMarketChangeThreshold, saveSevereWeatherAlerts]
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

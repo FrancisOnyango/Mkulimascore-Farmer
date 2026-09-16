@@ -13,16 +13,35 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Speech from 'expo-speech';
 import { AppShell } from '@/components/AppShell';
 import { BrandMark } from '@/components/BrandMark';
 import { useAppData } from '@/context/AppDataContext';
 import { colors, radius, spacing } from '@/constants/theme';
 import { startVoiceInput } from '@/lib/voice/voiceInput';
 import { startersForScreen } from '@/lib/ai/askPolicy';
+import { createAskMkulimaClient } from '@/lib/ai/AskMkulimaService';
 import { ASK_UI, localizeAskList } from '@/lib/i18n/askLanguage';
 import { getAskMkulimaIntegrationStatus, type AskMkulimaIntegrationStatus } from '@/lib/ai/AskMkulimaIntegration';
 import type { AskScreen } from '@/domain/ask';
-import type { AskMkulimaMessage } from '@/domain/types';
+import type { AskActionCard, AskMkulimaMessage } from '@/domain/types';
+
+const CONFIRMABLE_ACTIONS = new Set([
+  'create_profile_update_request',
+  'profile_update',
+  'planting_date',
+  'create_activity_draft',
+  'activity',
+  'save_activity',
+  'report_pest_or_disease',
+  'pest',
+  'disease',
+  'submit_impact_report',
+  'impact',
+  'escalate_to_officer',
+  'escalation'
+]);
 
 function getContextualStarters({
   weather,
@@ -55,6 +74,7 @@ export default function AskMkulima() {
     askMessages,
     askMkulima,
     confirmAskDraft,
+    confirmAskAction,
     dismissAskDraft,
     clearAskConversation,
     settings,
@@ -81,6 +101,8 @@ export default function AskMkulima() {
   const [failedQuestion, setFailedQuestion] = useState('');
   const [openedSource, setOpenedSource] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<{ uri: string; dataUrl: string; contentType: string } | null>(null);
   const [integration, setIntegration] = useState<AskMkulimaIntegrationStatus | null>(null);
   const listRef = useRef<FlatList<AskMkulimaMessage>>(null);
   const showVoice = Platform.OS === 'web';
@@ -92,17 +114,37 @@ export default function AskMkulima() {
     });
     return () => {
       mounted = false;
+      Speech.stop();
     };
   }, []);
 
   async function send(text = question) {
-    const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    const photo = pendingPhoto;
+    const trimmed = text.trim() || (photo ? ui.photoPrompt : '');
+    if ((!trimmed && !photo) || sending) return;
     setSending(true);
     setError(null);
     setQuestion('');
+    setPendingPhoto(null);
     try {
-      await askMkulima(trimmed, { screen, farmId: params.farmId });
+      let attachmentId: string | undefined;
+      if (photo) {
+        const client = createAskMkulimaClient();
+        const registered = client.registerAttachment
+          ? await client.registerAttachment({
+              farmId: params.farmId,
+              contentType: photo.contentType,
+              purpose: 'crop_or_livestock_assessment'
+            })
+          : null;
+        attachmentId = registered?.id;
+      }
+      await askMkulima(trimmed, {
+        screen,
+        farmId: params.farmId,
+        imageDataUrl: photo?.dataUrl,
+        attachmentId
+      });
       setFailedQuestion('');
     } catch (sendError) {
       setQuestion(trimmed);
@@ -122,6 +164,34 @@ export default function AskMkulima() {
     }
   }
 
+  async function pickPhoto() {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(ui.title, ui.photoFail);
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.55,
+        base64: true,
+        allowsEditing: true
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert(ui.title, ui.photoFail);
+        return;
+      }
+      const contentType = asset.mimeType?.startsWith('image/') ? asset.mimeType : 'image/jpeg';
+      const dataUrl = `data:${contentType};base64,${asset.base64}`;
+      setPendingPhoto({ uri: asset.uri, dataUrl, contentType });
+      if (!question.trim()) setQuestion(ui.photoPrompt);
+    } catch {
+      Alert.alert(ui.title, ui.photoFail);
+    }
+  }
+
   async function listen() {
     setListening(true);
     try {
@@ -135,6 +205,22 @@ export default function AskMkulima() {
     } finally {
       setListening(false);
     }
+  }
+
+  function toggleSpeech(message: AskMkulimaMessage) {
+    if (speakingId === message.id) {
+      Speech.stop();
+      setSpeakingId(null);
+      return;
+    }
+    Speech.stop();
+    setSpeakingId(message.id);
+    Speech.speak(message.text, {
+      language: settings.language === 'sw' ? 'sw-KE' : 'en-KE',
+      onDone: () => setSpeakingId(null),
+      onStopped: () => setSpeakingId(null),
+      onError: () => setSpeakingId(null)
+    });
   }
 
   const lastAssistantId = [...askMessages].reverse().find((item) => item.role === 'assistant')?.id;
@@ -188,9 +274,12 @@ export default function AskMkulima() {
               last={item.id === lastAssistantId}
               sending={sending}
               opened={openedSource === item.id}
+              speaking={speakingId === item.id}
               ui={ui}
               onToggleSource={() => setOpenedSource((current) => (current === item.id ? null : item.id))}
               onFollowUp={(followUp) => void send(followUp)}
+              onSpeak={() => toggleSpeech(item)}
+              onConfirmAction={(card) => void confirmAskAction(card, { farmId: params.farmId, question: item.text })}
               onConfirmDraft={item.metadata?.draft ? () => void confirmAskDraft(item.metadata!.draft!) : undefined}
               onDismissDraft={item.metadata?.draft ? () => void dismissAskDraft() : undefined}
             />
@@ -217,7 +306,20 @@ export default function AskMkulima() {
           </View>
         ) : null}
 
+        {pendingPhoto ? (
+          <View style={styles.photoPending}>
+            <Ionicons name="image-outline" size={16} color={colors.brandDark} />
+            <Text style={styles.photoPendingText}>{ui.addPhoto}</Text>
+            <Pressable onPress={() => setPendingPhoto(null)} accessibilityRole="button">
+              <Ionicons name="close" size={16} color={colors.muted} />
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={styles.composer}>
+          <Pressable onPress={() => void pickPhoto()} disabled={sending} accessibilityRole="button" accessibilityLabel={ui.addPhoto} style={[styles.voice, sending && styles.disabled]}>
+            <Ionicons name="camera-outline" size={20} color={colors.brandDark} />
+          </Pressable>
           <TextInput
             value={question}
             onChangeText={setQuestion}
@@ -236,10 +338,10 @@ export default function AskMkulima() {
           ) : null}
           <Pressable
             onPress={() => void send()}
-            disabled={sending || !question.trim()}
+            disabled={sending || (!question.trim() && !pendingPhoto)}
             accessibilityRole="button"
             accessibilityLabel="Send"
-            style={[styles.send, (sending || !question.trim()) && styles.disabled]}
+            style={[styles.send, (sending || (!question.trim() && !pendingPhoto)) && styles.disabled]}
           >
             {sending ? <ActivityIndicator color="#fff" /> : <Ionicons name="arrow-up" size={20} color="#fff" />}
           </Pressable>
@@ -254,8 +356,11 @@ function MessageBubble({
   last,
   sending,
   opened,
+  speaking,
   onToggleSource,
   onFollowUp,
+  onSpeak,
+  onConfirmAction,
   onConfirmDraft,
   onDismissDraft,
   ui
@@ -264,9 +369,12 @@ function MessageBubble({
   last: boolean;
   sending: boolean;
   opened: boolean;
+  speaking: boolean;
   ui: (typeof ASK_UI)[keyof typeof ASK_UI];
   onToggleSource: () => void;
   onFollowUp: (text: string) => void;
+  onSpeak: () => void;
+  onConfirmAction: (card: AskActionCard) => void;
   onConfirmDraft?: () => void;
   onDismissDraft?: () => void;
 }) {
@@ -286,7 +394,37 @@ function MessageBubble({
       <BrandMark size={28} />
       <View style={[styles.bubble, styles.assistantBubble]}>
         <Text style={styles.assistantText}>{message.text}</Text>
+        <Pressable onPress={onSpeak} accessibilityRole="button" accessibilityLabel={speaking ? ui.stopListen : ui.listen} style={styles.speakBtn}>
+          <Ionicons name={speaking ? 'stop-circle-outline' : 'volume-medium-outline'} size={16} color={colors.brand} />
+          <Text style={styles.speakText}>{speaking ? ui.stopListen : ui.listen}</Text>
+        </Pressable>
         {localOnly ? <Text style={styles.fromPhone}>{ui.fromPhone}</Text> : null}
+        {message.metadata?.actionCards?.length ? (
+          <View style={styles.actionCards}>
+            {message.metadata.actionCards.slice(0, 3).map((card) => (
+              <Pressable
+                key={`${message.id}-${card.type}-${card.label}`}
+                onPress={() => {
+                  if (CONFIRMABLE_ACTIONS.has(card.type)) {
+                    onConfirmAction(card);
+                    return;
+                  }
+                  if (card.type === 'check_weather_window') {
+                    onFollowUp('How is the weather for my farm?');
+                    return;
+                  }
+                  onFollowUp(card.label);
+                }}
+                accessibilityRole="button"
+                style={styles.actionCard}
+              >
+                <Text style={styles.actionCardText}>
+                  {CONFIRMABLE_ACTIONS.has(card.type) ? `${ui.confirmAction}: ${card.label}` : card.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
         {sources.length ? (
           <Pressable onPress={onToggleSource} accessibilityRole="button" style={styles.how}>
             <Text style={styles.howText}>{opened ? ui.hideHow : ui.how}</Text>
@@ -371,9 +509,22 @@ const styles = StyleSheet.create({
   assistantRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, maxWidth: '94%' },
   assistantBubble: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderBottomLeftRadius: 6 },
   assistantText: { color: colors.text, fontSize: 16, lineHeight: 23 },
+  speakBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm },
+  speakText: { color: colors.brand, fontWeight: '800', fontSize: 12 },
   fromPhone: { color: colors.faint, fontSize: 11, fontWeight: '700', marginTop: spacing.sm },
   how: { marginTop: spacing.sm },
   howText: { color: colors.brand, fontWeight: '800', fontSize: 12 },
+  actionCards: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  actionCard: {
+    minHeight: 40,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    backgroundColor: colors.brandSoft,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center'
+  },
+  actionCardText: { color: colors.brandDark, fontWeight: '800', fontSize: 13 },
   sourceBox: { marginTop: spacing.sm, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.sm, gap: 4 },
   sourceLine: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   inlineFollow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
@@ -432,6 +583,18 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, color: colors.clay, fontSize: 13, fontWeight: '700', lineHeight: 18 },
   retry: { minHeight: 36, borderRadius: radius.md, backgroundColor: colors.brandDark, paddingHorizontal: spacing.md, justifyContent: 'center' },
   retryText: { color: '#fff', fontWeight: '800' },
+  photoPending: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.brandSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
+  photoPendingText: { flex: 1, color: colors.brandDark, fontWeight: '700', fontSize: 13 },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',

@@ -23,7 +23,7 @@ if GROQ_API_KEY:
         or os.environ.get("OPENAI_BASE_URL")
         or "https://api.groq.com/openai/v1"
     ).rstrip("/")
-    LLM_MODEL = os.environ.get("GROQ_MODEL") or os.environ.get("OPENAI_MODEL") or "groq/compound-mini"
+    LLM_MODEL = os.environ.get("GROQ_MODEL") or os.environ.get("OPENAI_MODEL") or "openai/gpt-oss-120b"
     LLM_PROVIDER = "groq"
 elif XAI_API_KEY:
     LLM_API_KEY = XAI_API_KEY
@@ -92,15 +92,17 @@ def provider_info() -> dict[str, str]:
             "status": "healthy",
             "service": "ask-mkulima",
             "provider": LLM_PROVIDER,
-            "model": LLM_MODEL,
-            "policy": "farmer-safe-v1",
+            "model": "configured",  # do not expose concrete model ids to the app UI
+            "policy": "farmer-safe-orchestrator-v1",
+            "orchestrator": "ask_orchestrator_v1",
         }
     return {
         "status": "healthy",
         "service": "ask-mkulima",
         "provider": "local",
         "model": "mkulima-farmer-reasoner-v3",
-        "policy": "farmer-safe-v1",
+        "policy": "farmer-safe-orchestrator-v1",
+        "orchestrator": "ask_orchestrator_v1",
     }
 
 

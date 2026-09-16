@@ -133,7 +133,13 @@ export const ASK_UI = {
     auth: 'Sign in again if you want the live assistant. You can still ask from this phone.',
     fail: 'I could not answer that. Your farm data is still safe. Try again when you have a signal.',
     voiceFail: 'Voice is not available here. Type your question.',
-    clear: 'Clear conversation'
+    clear: 'Clear conversation',
+    addPhoto: 'Add photo',
+    photoFail: 'I could not open the camera or gallery.',
+    listen: 'Listen',
+    stopListen: 'Stop',
+    confirmAction: 'Confirm provisional',
+    photoPrompt: 'What do you see on these leaves or animals?'
   },
   sw: {
     title: 'Uliza Mkulima',
@@ -158,6 +164,12 @@ export const ASK_UI = {
     auth: 'Ingia tena ili kupata msaidizi wa moja kwa moja. Bado unaweza kuuliza kutoka simu hii.',
     fail: 'Sikuweza kujibu. Data ya shamba bado iko salama. Jaribu tena ukiwa na mtandao.',
     voiceFail: 'Sauti haipatikani hapa. Andika swali.',
-    clear: 'Futa mazungumzo'
+    clear: 'Futa mazungumzo',
+    addPhoto: 'Ongeza picha',
+    photoFail: 'Sikuweza kufungua kamera au album.',
+    listen: 'Sikiliza',
+    stopListen: 'Simama',
+    confirmAction: 'Thibitisha kwa muda',
+    photoPrompt: 'Unaona nini kwenye majani au mifugo?'
   }
 } as const;

@@ -25,6 +25,9 @@ from boto3.dynamodb.conditions import Key
 
 from ask_context import build_packet, classify_risk, high_risk_answer
 from ask_llm import provider_info, rewrite_answer
+from ask_orchestrator import run_ask
+from ask_orchestrator.actions import build_confirmation_records
+from ask_orchestrator.ops import enqueue_review, evaluation_catalog, prompt_version_info
 from knowledge import search_knowledge
 from market_intelligence import nearby_intelligence
 from places_intelligence import find_duplicate, nearby_places
@@ -89,17 +92,17 @@ def route(method: str, path: str, event: dict[str, Any]):
 
     # Weather EWS routes may be farmer-auth or ops; resolve farmer when bearer present.
     farmer = None
-    if path.startswith("/api/v1/farmer/") or path.startswith("/api/v1/weather-alerts") or path.startswith("/api/v1/impact-reports"):
+    if path.startswith("/api/v1/farmer/") or path.startswith("/api/v1/weather-alerts") or path.startswith("/api/v1/impact-reports") or path.startswith("/api/v1/ask/"):
         farmer = require_farmer(event)
-    elif path.startswith("/api/v1/ops/weather/"):
-        # Staging: ops ingest can run with farmer token or without when WEATHER_OPS_OPEN=1
-        if os.environ.get("WEATHER_OPS_OPEN") == "1":
+    elif path.startswith("/api/v1/ops/weather/") or path.startswith("/api/v1/ops/ask/"):
+        # Staging: ops can run with farmer token or open health/version when WEATHER_OPS_OPEN=1
+        if os.environ.get("WEATHER_OPS_OPEN") == "1" and method == "GET":
             farmer = None
         else:
             try:
                 farmer = require_farmer(event)
             except AuthError:
-                if path.endswith("/health") and method == "GET":
+                if method == "GET" and (path.endswith("/health") or path.endswith("/version") or path.endswith("/evaluation")):
                     farmer = None
                 else:
                     raise
@@ -124,6 +127,26 @@ def route(method: str, path: str, event: dict[str, Any]):
         return submit(farmer, body(event), header(event, "idempotency-key"))
     if path == "/api/v1/farmer/ask-mkulima" and method == "POST":
         return ask_mkulima(farmer, body(event))
+    if path == "/api/v1/ask/sessions" and method == "POST":
+        return ask_create_session(farmer, body(event))
+    if path.startswith("/api/v1/ask/sessions/") and method == "GET":
+        return ask_get_session(farmer, path.rsplit("/", 1)[-1])
+    if path == "/api/v1/ask/messages" and method == "POST":
+        return ask_mkulima(farmer, body(event))
+    if path.startswith("/api/v1/ask/messages/") and path.endswith("/feedback") and method == "POST":
+        return ask_feedback(farmer, path.split("/")[-2], body(event))
+    if path.startswith("/api/v1/ask/actions/") and path.endswith("/confirm") and method == "POST":
+        return ask_confirm_action(farmer, path.split("/")[-2], body(event))
+    if path == "/api/v1/ask/escalations" and method == "POST":
+        return ask_escalation(farmer, body(event))
+    if path == "/api/v1/ask/attachments" and method == "POST":
+        return ask_attachment(farmer, body(event))
+    if path == "/api/v1/ops/ask/version" and method == "GET":
+        return respond(200, prompt_version_info())
+    if path == "/api/v1/ops/ask/evaluation" and method == "GET":
+        return respond(200, evaluation_catalog())
+    if path == "/api/v1/ops/ask/review" and method == "POST":
+        return ask_ops_review(farmer, body(event))
     if path == "/api/v1/farmer/bootstrap" and method == "GET":
         return respond(200, bootstrap(farmer))
     if path == "/api/v1/farmer/passport" and method == "GET":
@@ -287,18 +310,21 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
         raise ValueError("QUESTION_REQUIRED")
     context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
     draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
-    if not context.get("farms") and not context.get("passport"):
+    if not context.get("farms") and not context.get("passport") and not (isinstance(context.get("packet"), dict) and context["packet"].get("farms")):
         context = {
+            **context,
             "passport": farmer["profile"],
             "farms": items(farmer["msid"], "FARM#"),
             "enterprises": items(farmer["msid"], "ENTERPRISE#"),
             "records": items(farmer["msid"], "RECORD#"),
+            "activity": items(farmer["msid"], "ACTIVITY#"),
             "openRequests": items(farmer["msid"], "REQUEST#"),
             "consentSummaries": items(farmer["msid"], "CONSENT#"),
-            "weather": [],
-            "climate": [],
-            "markets": [],
-            "alerts": [],
+            "weather": context.get("weather") or [],
+            "climate": context.get("climate") or [],
+            "markets": context.get("markets") or [],
+            "alerts": context.get("alerts") or [],
+            "places": context.get("places") or [],
             "pendingOutboxCount": 0,
         }
     lowered = question.lower()
@@ -310,6 +336,35 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             ["How is the weather for my farm?", "How is my production?"],
             [],
         ))
+
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    language = str(payload.get("language") or "en")
+    has_attachment = bool(payload.get("attachmentId") or payload.get("hasAttachment") or payload.get("imageDataUrl"))
+    image_data_url = payload.get("imageDataUrl") if isinstance(payload.get("imageDataUrl"), str) else None
+    if image_data_url and not str(image_data_url).startswith("data:image/"):
+        image_data_url = None
+
+    # Cloud-grounded orchestrator: selective context → tools → Groq → safety.
+    try:
+        result = run_ask(
+            farmer=farmer,
+            question=question,
+            client_context=context,
+            history=history,
+            language=language,
+            draft_text=str(draft.get("text") or "") or None,
+            has_attachment=has_attachment,
+            image_data_url=image_data_url,
+        )
+        meta = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+        return respond(200, {
+            "text": result.get("text") or "",
+            "metadata": meta,
+        })
+    except Exception as exc:
+        print(f"ASK_ORCH_FALLBACK {type(exc).__name__} {exc}")
+
+    # Legacy fallback path if orchestrator fails hard
     if classify_risk(question) == "high":
         blocked = high_risk_answer(question)
         return respond(200, ask_payload(
@@ -319,8 +374,6 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             as_list(blocked.get("followUps")),
             as_list(blocked.get("sources")),
         ))
-
-    history = payload.get("history") if isinstance(payload.get("history"), list) else []
     packet = build_packet(farmer, question, context)
     built = draft if draft.get("text") else local_ask_draft(question, context)
     enterprise = first(context.get("enterprises")) or first(packet.get("enterprises")) or {}
@@ -335,7 +388,6 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
             "freshness": f"Tier {item.get('authorityTier')}",
             "limitation": "Published guidance, not a farm visit.",
         } for item in knowledge if isinstance(item, dict)]
-    language = str(payload.get("language") or (packet.get("farmer") or {}).get("language") or "en")
     text, llm = rewrite_answer(question, str(built.get("text") or ""), built, history, language)
     return respond(200, ask_payload(
         str(built.get("intent") or "general"),
@@ -492,6 +544,155 @@ def local_ask_draft(question: str, context: dict[str, Any]) -> dict[str, Any]:
         "followUps": ["How is the weather for my farm?"],
         "sources": [],
     }
+
+
+def ask_create_session(farmer: dict[str, Any], payload: dict[str, Any]):
+    session_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    item = {
+        "id": session_id,
+        "msid": farmer["msid"],
+        "farmId": payload.get("farmId"),
+        "language": payload.get("language") or "en",
+        "createdAt": now,
+        "status": "open",
+    }
+    table.put_item(Item={
+        "pk": f"FARMER#{farmer['msid']}",
+        "sk": f"ASKSESSION#{session_id}",
+        "entity": "ask_session",
+        "data": item,
+        "updated_at": now,
+    })
+    return respond(200, {"session": item})
+
+
+def ask_get_session(farmer: dict[str, Any], session_id: str):
+    res = table.get_item(Key={"pk": f"FARMER#{farmer['msid']}", "sk": f"ASKSESSION#{session_id}"})
+    item = res.get("Item")
+    if not item:
+        return respond(404, {"detail": "Session not found"})
+    return respond(200, {"session": item.get("data")})
+
+
+def ask_feedback(farmer: dict[str, Any], message_id: str, payload: dict[str, Any]):
+    now = datetime.now(timezone.utc).isoformat()
+    feedback = {
+        "messageId": message_id,
+        "rating": payload.get("rating"),
+        "note": str(payload.get("note") or "")[:500],
+        "msid": farmer["msid"],
+        "createdAt": now,
+        "reviewRequired": True,
+    }
+    table.put_item(Item={
+        "pk": f"FARMER#{farmer['msid']}",
+        "sk": f"ASKFEEDBACK#{uuid.uuid4()}",
+        "entity": "ask_feedback",
+        "data": feedback,
+        "updated_at": now,
+    })
+    return respond(200, {"status": "ACCEPTED", "note": "Feedback is reviewed before it can change evaluation data."})
+
+
+def ask_confirm_action(farmer: dict[str, Any], action_id: str, payload: dict[str, Any]):
+    built = build_confirmation_records(farmer, action_id, payload)
+    now = datetime.now(timezone.utc).isoformat()
+    for entity in built["entity_items"]:
+        table.put_item(Item={
+            "pk": f"FARMER#{farmer['msid']}",
+            "sk": entity["sk"],
+            "entity": entity["entity"],
+            "data": entity["data"],
+            "updated_at": now,
+        })
+    for op in built["outbox_ops"]:
+        outbox_id = str(uuid.uuid4())
+        table.put_item(Item={
+            "pk": f"FARMER#{farmer['msid']}",
+            "sk": f"OUTBOX#{outbox_id}",
+            "entity": "outbox",
+            "data": {
+                "id": outbox_id,
+                "operationType": op["operation_type"],
+                "payload": op["payload"],
+                "state": "PENDING",
+                "createdAt": now,
+                "source": "ASK_MKULIMA",
+            },
+            "updated_at": now,
+        })
+    table.put_item(Item={
+        "pk": f"FARMER#{farmer['msid']}",
+        "sk": f"ASKACTION#{uuid.uuid4()}",
+        "entity": "ask_action_confirm",
+        "data": built["confirmation"],
+        "updated_at": now,
+    })
+    return respond(200, {
+        "status": "ACCEPTED",
+        "confirmation": built["confirmation"],
+        "provisionalRecords": len(built["entity_items"]),
+        "outboxQueued": len(built["outbox_ops"]),
+        "note": "Confirmed actions stay provisional until the matching farm workflow or field visit completes.",
+    })
+
+
+def ask_attachment(farmer: dict[str, Any], payload: dict[str, Any]):
+    """Register a photo attachment metadata record. Large binaries stay client-side or S3 in production."""
+    now = datetime.now(timezone.utc).isoformat()
+    attachment_id = str(uuid.uuid4())
+    content_type = str(payload.get("contentType") or "image/jpeg")
+    if not content_type.startswith("image/"):
+        return respond(400, {"detail": "Only image attachments are accepted for Ask assessment."})
+    record = {
+        "id": attachment_id,
+        "msid": farmer["msid"],
+        "farmId": payload.get("farmId"),
+        "contentType": content_type,
+        "byteSize": payload.get("byteSize"),
+        "purpose": payload.get("purpose") or "crop_or_livestock_assessment",
+        "createdAt": now,
+        "status": "registered",
+        "provisional": True,
+        "note": "Photo assessments are provisional. A photo alone cannot confirm a diagnosis.",
+    }
+    table.put_item(Item={
+        "pk": f"FARMER#{farmer['msid']}",
+        "sk": f"ASKATT#{attachment_id}",
+        "entity": "ask_attachment",
+        "data": record,
+        "updated_at": now,
+    })
+    return respond(200, {"attachment": record})
+
+
+def ask_ops_review(farmer: dict[str, Any] | None, payload: dict[str, Any]):
+    msid = (farmer or {}).get("msid") or str(payload.get("msid") or "SYSTEM")
+    item = enqueue_review(table, msid, payload)
+    return respond(200, {"status": "QUEUED", "review": item})
+
+
+def ask_escalation(farmer: dict[str, Any], payload: dict[str, Any]):
+    now = datetime.now(timezone.utc).isoformat()
+    case = {
+        "id": str(uuid.uuid4()),
+        "msid": farmer["msid"],
+        "farmId": payload.get("farmId"),
+        "reason": str(payload.get("reason") or "farmer_requested")[:300],
+        "question": str(payload.get("question") or "")[:500],
+        "createdAt": now,
+        "status": "open",
+        "channel": "field_or_extension_officer",
+    }
+    table.put_item(Item={
+        "pk": f"FARMER#{farmer['msid']}",
+        "sk": f"ASKESC#{case['id']}",
+        "entity": "ask_escalation",
+        "data": case,
+        "updated_at": now,
+    })
+    return respond(200, {"status": "ACCEPTED", "escalation": case})
 
 
 def ask_payload(
