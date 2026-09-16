@@ -28,6 +28,7 @@ import {
   restoreSampleFarm,
   requestBoundaryVerification,
   requestInstitutionLink,
+  saveNationalIdClaim,
   saveFarmPlace,
   saveFarmerMarketNote,
   saveFieldLook,
@@ -41,8 +42,14 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   retryEvidenceRecordUpload,
-  updateEvidenceRecordStatus
+  updateEvidenceRecordStatus,
+  acknowledgeWarning,
+  reportWarningImpact,
+  listWarningAcks,
+  saveFarmExposure,
+  listImpactCases
 } from '@/db/database';
+import { postWeatherAck, postWeatherImpact } from '@/lib/api/weatherEws';
 
 export const FarmerAppService = {
   getFarm,
@@ -83,6 +90,31 @@ export const FarmerAppService = {
   retryEvidenceRecordUpload,
   updateEvidenceRecordStatus,
   deleteEvidenceRecord,
+  listWarningAcks,
+  saveFarmExposure,
+  listImpactCases,
+
+  async acknowledgeWarning(alertId: string, selectedActionId?: string) {
+    const local = await acknowledgeWarning(alertId, selectedActionId);
+    try {
+      await postWeatherAck(alertId, selectedActionId);
+    } catch {
+      // Outbox already has FARMER_WARNING_ACK from local write.
+    }
+    return local;
+  },
+
+  async reportWarningImpact(input: Parameters<typeof reportWarningImpact>[0]) {
+    const local = await reportWarningImpact(input);
+    if (input.alertId) {
+      try {
+        await postWeatherImpact(input.alertId, input);
+      } catch {
+        // Local provisional case + outbox remain.
+      }
+    }
+    return local;
+  },
 
   requestConsentRevocation(id: string) {
     return revokeConsentLocal(id);
@@ -120,6 +152,10 @@ export const FarmerAppService = {
   restoreSampleFarm,
   completeSelfOnboarding(draft: OnboardingDraft) {
     return completeSelfOnboarding(draft);
+  },
+
+  saveNationalId(nationalId: string) {
+    return saveNationalIdClaim(nationalId);
   },
 
   requestInstitutionLink,

@@ -10,7 +10,7 @@ export function BrandMark({ size = 48, light = false }: { size?: number; light?:
       accessibilityLabel="MkulimaScore"
       style={[
         styles.wrap,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: light ? 'rgba(255,255,255,0.08)' : '#F5F3EA' }
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: light ? 'rgba(255,255,255,0.08)' : '#E8F6EE' }
       ]}
     >
       <Image source={logo} resizeMode="contain" style={{ width: size, height: size }} />

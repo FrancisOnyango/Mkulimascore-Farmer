@@ -73,6 +73,7 @@ export default function RootLayout() {
           <Stack.Screen name="ask" options={{ title: 'Ask Mkulima', headerShown: false }} />
           <Stack.Screen name="financing" options={{ title: 'Financing readiness' }} />
           <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+          <Stack.Screen name="warnings/[id]" options={{ title: 'Early warning' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
           <Stack.Screen name="consents" options={{ title: 'My permissions' }} />
           <Stack.Screen name="connect-institution" options={{ title: 'Connect institution' }} />

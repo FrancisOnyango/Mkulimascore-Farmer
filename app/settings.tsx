@@ -9,6 +9,7 @@ import { useAppData } from '@/context/AppDataContext';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import { getBackendStatus, type BackendStatus } from '@/lib/api/BackendStatus';
 import { getAskMkulimaIntegrationStatus, type AskMkulimaIntegrationStatus } from '@/lib/ai/AskMkulimaIntegration';
+import { fetchWeatherOpsHealth } from '@/lib/api/weatherEws';
 import { colors, spacing } from '@/constants/theme';
 import { getStrings } from '@/constants/strings';
 
@@ -18,6 +19,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [backend, setBackend] = useState<BackendStatus | null>(null);
   const [aiStatus, setAiStatus] = useState<AskMkulimaIntegrationStatus | null>(null);
+  const [weatherHealth, setWeatherHealth] = useState<Record<string, unknown> | null>(null);
   const [checkingBackend, setCheckingBackend] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -44,12 +46,14 @@ export default function Settings() {
     setCheckingBackend(true);
     setBackendError(null);
     try {
-      const [backendStatus, assistantStatus] = await Promise.all([
+      const [backendStatus, assistantStatus, ews] = await Promise.all([
         getBackendStatus(),
-        getAskMkulimaIntegrationStatus()
+        getAskMkulimaIntegrationStatus(),
+        fetchWeatherOpsHealth().catch(() => null)
       ]);
       setBackend(backendStatus);
       setAiStatus(assistantStatus);
+      setWeatherHealth(ews);
     } catch {
       setBackendError('Backend health is currently unavailable. Local data remains available.');
     } finally {
@@ -112,7 +116,7 @@ export default function Settings() {
           <Text style={styles.percent}>%</Text>
         </View>
         <View style={[styles.row, { marginTop: spacing.md }]}>
-          <View style={{ flex: 1 }}><H3>Severe-weather alerts</H3><Caption>Receive push alerts when the configured service reports severe weather near your farms.</Caption></View>
+          <View style={{ flex: 1 }}><H3>Severe-weather & preparedness alerts</H3><Caption>Allow notices for farm-place severe weather and Mkulima preparedness watches. Official KMD/NDMA warnings are labelled separately when available.</Caption></View>
           <Switch value={settings.severeWeatherAlerts} onValueChange={(value) => void saveSevereWeatherAlerts(value)} trackColor={{ false: colors.line, true: colors.brandSoft }} thumbColor={settings.severeWeatherAlerts ? colors.brand : colors.faint} />
         </View>
       </Card>
@@ -123,7 +127,16 @@ export default function Settings() {
         <DataRow label={strings.settings.health} value={backend?.statusText ?? 'Checking backend health'} />
         <DataRow label="Farm profile from Mkulima" value={backend?.lastProjectionAt ? new Date(backend.lastProjectionAt).toLocaleString() : 'Not received yet'} />
         <DataRow label="What this phone sends" value={backend?.writes ?? 'Evidence envelopes only'} />
-        <DataRow label="Ask Mkulima AI" value={aiStatus?.statusText ?? 'Checking AI service'} last />
+        <DataRow label="Ask Mkulima AI" value={aiStatus?.statusText ?? 'Checking AI service'} />
+        <DataRow
+          label="Weather EWS lanes"
+          value={
+            weatherHealth
+              ? `${String((weatherHealth as { status?: string }).status ?? 'unknown')} · model ${(weatherHealth as { lanes?: { model_derived_watch?: string } }).lanes?.model_derived_watch ?? '—'} · official ${(weatherHealth as { lanes?: { official_warning?: string } }).lanes?.official_warning ?? '—'}`
+              : 'Checking forecast health'
+          }
+          last
+        />
         {backendError ? <Text accessibilityRole="alert" style={styles.error}>{backendError}</Text> : null}
         <PrimaryButton
           label={checkingBackend ? 'Checking...' : strings.settings.refreshBackend}

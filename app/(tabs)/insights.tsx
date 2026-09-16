@@ -9,7 +9,7 @@ import { colors, radius, spacing } from '@/constants/theme';
 
 const sections = [
   { title: 'For my farm', detail: 'Health, season and the living farm profile', route: '/(tabs)/farm' },
-  { title: 'Weather', detail: 'Forecast for the farm place', route: '/insights/weather' },
+  { title: 'Weather & early warning', detail: 'Forecast, preparedness watches and seasonal outlook', route: '/insights/weather' },
   { title: 'Markets', detail: 'Nearby options, when a source exists', route: '/insights/markets' },
   { title: 'My profile', detail: 'What can strengthen the Passport', route: '/passport' }
 ] as const;
@@ -21,7 +21,7 @@ export default function Insights() {
   return (
     <AppShell ask={{ screen: 'insights' }}>
       <H1>Insights</H1>
-      <Caption style={{ marginTop: spacing.sm }}>Weather, markets and profile — all from the farm, not a dashboard.</Caption>
+      <Caption style={{ marginTop: spacing.sm }}>Weather, early warning, markets and profile — from the farm, not a dashboard.</Caption>
       <View style={{ marginTop: spacing.lg }}>
         <AskBar hint="Weather, prices or why the profile needs work" onPress={() => router.push({ pathname: '/ask', params: { screen: 'insights' } })} />
       </View>

@@ -105,6 +105,10 @@ export interface Passport {
   msid: string;
   displayName: string;
   phoneMasked: string;
+  /** Masked national ID for display. Full ID stays out of Ask context and analytics. */
+  nationalIdMasked?: string;
+  /** True when the farmer added a national ID (provisional until verified). */
+  hasNationalId?: boolean;
   location: string;
   identityVerified: boolean;
   profileStatus: 'good' | 'attention';
@@ -136,6 +140,15 @@ export interface Farm {
   fieldLook?: FieldLook;
   fieldLookAt?: string | null;
   lastAccuracyM?: number | null;
+  /** Farmer-reported exposure for early-warning risk interpretation (architecture §13.1.4). */
+  exposure?: {
+    nearWaterway?: boolean;
+    poorDrainage?: boolean;
+    steepSlope?: boolean;
+    singleAccessRoad?: boolean;
+    fragileStorage?: boolean;
+    notedAt?: string | null;
+  };
 }
 
 export interface FarmerMarketNote {
@@ -230,6 +243,19 @@ export interface FarmWeather {
   fieldActivityNote: string;
   enterpriseNotes: { enterprise: string; note: string }[];
   updatedAt: string;
+  /** Numerical forecast lane metadata — never implies official warning. */
+  provider?: 'open_meteo' | 'cached' | 'demo';
+  forecastCellId?: string;
+  freshness?: 'fresh' | 'stale' | 'unavailable';
+  ageMinutes?: number | null;
+  sourceDisclaimer?: string;
+  features?: {
+    rain6hMm?: number | null;
+    rain24hMm?: number | null;
+    rain72hMm?: number | null;
+    rainProb24hPct?: number | null;
+    tempMax24hC?: number | null;
+  };
 }
 
 export interface ClimateSignal {

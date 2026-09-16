@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppShell } from '@/components/AppShell';
 import { Body, Caption, Eyebrow, H2, H3 } from '@/components/Typography';
 import { Card } from '@/components/Card';
 import { DataRow } from '@/components/DataRow';
+import { Input } from '@/components/Input';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { StatusPill } from '@/components/StatusPill';
 import { useAppData } from '@/context/AppDataContext';
 import { BrandMark } from '@/components/BrandMark';
+import { FarmerAppService } from '@/application/FarmerAppService';
 import { colors, spacing } from '@/constants/theme';
 import { strings } from '@/constants/strings';
 import { formatDate } from '@/lib/utils/format';
@@ -16,7 +19,9 @@ import { profileTimeline } from '@/lib/intelligence/timeline';
 import { incomeSnapshot } from '@/lib/intelligence/income';
 
 export default function PassportScreen() {
-  const { passport, farms, enterprises, consents, financing, records, activity } = useAppData();
+  const { passport, farms, enterprises, consents, financing, records, activity, refresh } = useAppData();
+  const [nationalId, setNationalId] = useState('');
+  const [savingId, setSavingId] = useState(false);
   if (!passport) return <AppShell><Body>Loading passport...</Body></AppShell>;
   const activeConsents = consents.filter((consent) => consent.status === 'active');
   const nextActions = passportNextActions({ passport, farms, enterprises, records, consents, activity });
@@ -24,6 +29,7 @@ export default function PassportScreen() {
   const income = incomeSnapshot(activity, enterprises);
   const readinessItems = [
     { label: 'Identity', complete: Boolean(passport.displayName), next: 'Add your name' },
+    { label: 'National ID', complete: Boolean(passport.hasNationalId), next: 'Add national ID for SACCO matching' },
     { label: 'Farm', complete: farms.length > 0, next: 'Add a farm' },
     { label: 'Place', complete: Boolean(farms[0]?.latitude && farms[0]?.longitude), next: 'Mark farm place' },
     { label: 'Enterprises', complete: enterprises.length > 0, next: 'Add an enterprise' },
@@ -32,6 +38,20 @@ export default function PassportScreen() {
   ];
   const strength = readinessItems.filter((item) => item.complete).length >= 4 ? 'Strong farm profile' : readinessItems.filter((item) => item.complete).length >= 2 ? 'Good progress' : 'Just getting started';
   const improve = nextActions.map((item) => item.title);
+
+  async function saveNationalId() {
+    setSavingId(true);
+    try {
+      await FarmerAppService.saveNationalId(nationalId);
+      setNationalId('');
+      await refresh();
+      Alert.alert('Saved on this phone', 'National ID is added by you. SACCOs and banks usually match members by this number.');
+    } catch {
+      Alert.alert('Could not save', 'Enter a valid national ID number and try again.');
+    } finally {
+      setSavingId(false);
+    }
+  }
 
   return (
     <AppShell>
@@ -58,11 +78,31 @@ export default function PassportScreen() {
 
       <Card style={{ marginTop: spacing.md }}>
         <DataRow label="Phone" value={passport.phoneMasked} />
+        <DataRow
+          label="National ID"
+          value={passport.hasNationalId ? `${passport.nationalIdMasked ?? 'Added'} · Added by you` : 'Not added yet'}
+        />
         <DataRow label="Location" value={passport.location} />
         <DataRow label="Evidence" value={passport.evidenceStatus} />
         <DataRow label="Freshness" value={passport.recordFreshness} />
         <DataRow label="Last updated" value={formatDate(passport.lastUpdated)} last />
       </Card>
+      {!passport.hasNationalId ? (
+        <Card style={{ marginTop: spacing.md }}>
+          <Caption>National ID for SACCO and bank matching</Caption>
+          <H3 style={{ marginTop: spacing.xs }}>Add your ID number</H3>
+          <Body style={{ marginTop: spacing.sm }}>Added by you until verified. Full number stays on this phone; Passport shows a masked value.</Body>
+          <Input
+            label="National ID"
+            value={nationalId}
+            onChangeText={setNationalId}
+            keyboardType="number-pad"
+            placeholder="e.g. 12345678"
+            hint="Optional now. Useful when an institution looks you up."
+          />
+          <PrimaryButton label={savingId ? 'Saving...' : 'Save national ID'} disabled={savingId || !nationalId.trim()} onPress={() => void saveNationalId()} />
+        </Card>
+      ) : null}
       <Card style={styles.trustCard}>
         <H3>Keep your farm profile current</H3>
         <Body style={{ marginTop: spacing.sm }}>Recent production, sales, costs, and evidence make this view more useful when you choose to share it.</Body>

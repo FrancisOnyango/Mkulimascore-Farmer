@@ -45,7 +45,7 @@ export default function Correction() {
       });
       await clearDraft();
       await refresh();
-      Alert.alert('Saved on this phone', 'We will review this. Confirmed details are not changed quietly.');
+      Alert.alert('Correction case opened', 'Saved on this phone as “You challenged this”. Confirmed details stay until review finishes.');
       router.back();
     } catch {
       setError('We could not save this request. Try again when you have a signal.');
@@ -57,10 +57,16 @@ export default function Correction() {
   return (
     <AppShell>
       <H2>Request correction</H2>
-      <Body style={styles.lead}>Tell us what looks wrong. Confirmed details stay as they are until review.</Body>
-      <Card style={{ marginTop: spacing.xl }}>
-        <Caption>Current verified value</Caption>
+      <Body style={styles.lead}>Tell us what looks wrong. Confirmed details stay as they are until review. Your proposal is saved as a case — not a silent overwrite.</Body>
+      <Card style={styles.statusCard}>
+        <Caption>Case status</Caption>
+        <H3 style={{ marginTop: 4 }}>You challenged this</H3>
+        <Body style={{ marginTop: spacing.sm }}>Current value stays visible. Your proposed value waits for review. This is not a score change.</Body>
+      </Card>
+      <Card style={{ marginTop: spacing.md }}>
+        <Caption>Current displayed value</Caption>
         <H3 style={{ marginTop: 4 }}>{draft.currentValue || 'Not shown'}</H3>
+        <Caption style={{ marginTop: spacing.xs }}>Added by you or last verified value — both stay in history.</Caption>
         <SuggestInput
           label="Information to correct"
           value={draft.field}
@@ -102,6 +108,7 @@ export default function Correction() {
 
 const styles = StyleSheet.create({
   lead: { color: colors.muted, marginTop: spacing.sm },
+  statusCard: { marginTop: spacing.xl, backgroundColor: colors.warm, borderColor: '#E7D7AE' },
   label: { marginTop: spacing.xl, marginBottom: spacing.sm, color: colors.ink, fontSize: 13, fontWeight: '800' },
   input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, backgroundColor: colors.surface, fontSize: 16 },
   multiline: { minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' },

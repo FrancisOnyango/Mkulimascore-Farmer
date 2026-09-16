@@ -49,7 +49,7 @@ export const strings = {
     county: 'County',
     language: 'Preferred language',
     yearOfBirth: 'Year of birth, optional',
-    nationalId: 'National ID, optional'
+    nationalId: 'National ID (used by SACCOs and banks)',
   },
   farmOnboarding: {
     title: 'Add your farm',
@@ -121,7 +121,7 @@ export const swahiliStrings = {
     county: 'Kaunti',
     language: 'Lugha unayopendelea',
     yearOfBirth: 'Mwaka wa kuzaliwa, si lazima',
-    nationalId: 'Kitambulisho, si lazima'
+    nationalId: 'Kitambulisho cha taifa (kinachotumiwa na SACCO na benki)',
   },
   settings: {
     ...strings.settings,

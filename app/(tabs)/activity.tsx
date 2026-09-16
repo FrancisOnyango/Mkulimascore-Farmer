@@ -12,33 +12,63 @@ import { colors, radius, spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/utils/format';
 
 export default function Activity() {
-  const { activity, enterprises, outbox } = useAppData();
+  const { activity, enterprises, farms, outbox, selectedFarmId, setSelectedFarmId } = useAppData();
+  const farm = farms.find((item) => item.id === selectedFarmId) ?? farms[0];
+  const farmEnterprises = farm ? enterprises.filter((item) => item.farmId === farm.id) : enterprises;
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = enterprises.find((item) => item.id === selectedId) ?? enterprises.find((item) => item.primary) ?? enterprises[0];
-  const cycle = useMemo(() => inferFarmCycle(selected ? [selected] : enterprises, activity), [activity, enterprises, selected]);
+  const selected = farmEnterprises.find((item) => item.id === selectedId)
+    ?? farmEnterprises.find((item) => item.primary)
+    ?? farmEnterprises[0]
+    ?? enterprises[0];
+  const cycle = useMemo(() => inferFarmCycle(selected ? [selected] : farmEnterprises, activity), [activity, farmEnterprises, selected]);
   const types = useMemo(() => activityTypes(selected?.sector, cycle.stage), [cycle.stage, selected]);
   const unsynced = outbox.filter((item) => item.state !== 'SYNCED').length;
 
   return (
-    <AppShell ask={{ screen: 'records', farmId: selected?.farmId }}>
+    <AppShell ask={{ screen: 'records', farmId: selected?.farmId ?? farm?.id }}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <H1>Farm diary</H1>
           <Caption style={{ marginTop: 4 }}>{cycle.diaryHint}</Caption>
         </View>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add"
-          onPress={() => router.push({ pathname: '/add', params: { context: 'enterprise', enterpriseId: selected?.id, farmId: selected?.farmId } })}
+          onPress={() => router.push({ pathname: '/add', params: { context: 'enterprise', enterpriseId: selected?.id, farmId: selected?.farmId ?? farm?.id } })}
           style={styles.add}
         >
           <Text style={styles.addText}>+</Text>
         </Pressable>
       </View>
 
-      {enterprises.length > 1 ? (
+      <View style={styles.context}>
+        <Caption style={styles.contextKicker}>Recording for</Caption>
+        <Text style={styles.contextTitle}>{farm?.name || 'Your farm'}</Text>
+        <Text style={styles.contextBody}>
+          {[selected?.sector || selected?.name, cycle.label !== 'Not set yet' ? cycle.label : null].filter(Boolean).join(' · ') || 'Choose an enterprise before you save'}
+        </Text>
+      </View>
+
+      {farms.length > 1 ? (
         <View style={styles.chips}>
-          {enterprises.map((enterprise) => (
+          {farms.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => {
+                setSelectedFarmId(item.id);
+                setSelectedId(null);
+              }}
+              style={[styles.chip, item.id === farm?.id && styles.chipOn]}
+            >
+              <Text style={[styles.chipText, item.id === farm?.id && styles.chipTextOn]}>{item.name}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      {farmEnterprises.length > 1 ? (
+        <View style={styles.chips}>
+          {farmEnterprises.map((enterprise) => (
             <Pressable
               key={enterprise.id}
               onPress={() => setSelectedId(enterprise.id)}
@@ -56,7 +86,7 @@ export default function Activity() {
             key={item.label}
             accessibilityRole="button"
             accessibilityLabel={item.label}
-            onPress={() => router.push({ pathname: item.route as never, params: { enterpriseId: selected?.id, farmId: selected?.farmId } })}
+            onPress={() => router.push({ pathname: item.route as never, params: { enterpriseId: selected?.id, farmId: selected?.farmId ?? farm?.id } })}
             style={styles.type}
           >
             <Text style={styles.typeText}>{item.label}</Text>
@@ -64,7 +94,7 @@ export default function Activity() {
         ))}
       </View>
 
-      {unsynced ? <Caption style={styles.sync}>{unsynced} waiting to send</Caption> : null}
+      {unsynced ? <Caption style={styles.sync}>{unsynced} waiting to send · Saved on this phone</Caption> : null}
 
       <FarmerSection title="Recent" action="All" onAction={() => router.push('/records')}>
         {activity.length ? activity.map((item, index) => (
@@ -78,9 +108,9 @@ export default function Activity() {
         )) : (
           <EmptyState
             title="Nothing yet"
-            body="Add milk, harvest, eggs or a sale."
+            body="Add milk, harvest, eggs or a sale for the enterprise selected above."
             action="Add"
-            onAction={() => router.push('/add')}
+            onAction={() => router.push({ pathname: '/add', params: { context: 'enterprise', enterpriseId: selected?.id, farmId: selected?.farmId ?? farm?.id } })}
           />
         )}
       </FarmerSection>
@@ -89,16 +119,27 @@ export default function Activity() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
   add: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
   addText: { color: '#fff', fontSize: 26, lineHeight: 30, fontWeight: '800' },
+  context: {
+    backgroundColor: colors.brandSoft,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#C9E0D1'
+  },
+  contextKicker: { color: colors.brand, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  contextTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 4 },
+  contextBody: { color: colors.muted, fontSize: 14, marginTop: 2, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   chip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
   chipOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   chipText: { color: colors.ink, fontWeight: '800', fontSize: 13 },
   chipTextOn: { color: '#fff' },
   types: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  type: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.brandSoft, justifyContent: 'center', paddingHorizontal: spacing.md },
-  typeText: { color: colors.brandDark, fontWeight: '800', fontSize: 15 },
-  sync: { marginBottom: spacing.md }
+  type: { minHeight: 40, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, justifyContent: 'center' },
+  typeText: { color: colors.brandDark, fontWeight: '800', fontSize: 13 },
+  sync: { color: colors.warmInk, fontWeight: '700', marginBottom: spacing.sm }
 });

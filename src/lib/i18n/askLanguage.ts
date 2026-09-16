@@ -113,7 +113,7 @@ export const ASK_UI = {
   en: {
     title: 'Ask Mkulima',
     emptyTitle: 'Ask about this farm',
-    emptyBody: 'Talk the way you would to a neighbour. I will use what you saved, then weather, prices or places when those tools have data. I will not invent a price, a spray, or a loan.',
+    emptyBody: 'Talk the way you would to a neighbour. Ask about farming, weather, markets, your records, or a general question. I will use what you saved and published Kenya guidance. I will not invent a price, a spray, or a loan.',
     placeholder: 'Ask about your farm',
     how: 'How I know',
     hideHow: 'Hide how I know',
@@ -138,7 +138,7 @@ export const ASK_UI = {
   sw: {
     title: 'Uliza Mkulima',
     emptyTitle: 'Uliza kuhusu shamba hili',
-    emptyBody: 'Ongea kama unavyoongea na jirani. Natumia ulichohifadhi, kisha hali ya hewa, bei au sehemu zilizoandikwa. Sitatengeneza bei, dawa, wala mkopo.',
+    emptyBody: 'Ongea kama unavyoongea na jirani. Uliza kuhusu kilimo, hali ya hewa, soko, kumbukumbu zako, au swali la kawaida. Natumia ulichohifadhi na mwongozo wa Kenya. Sitatengeneza bei, dawa, wala mkopo.',
     placeholder: 'Uliza kuhusu shamba lako',
     how: 'Ninaajuaje',
     hideHow: 'Ficha jinsi ninavyojua',

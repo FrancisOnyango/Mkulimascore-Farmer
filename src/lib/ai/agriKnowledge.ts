@@ -31,7 +31,7 @@ export function searchAgriKnowledge(question: string, sector?: string, limit = 3
   if (!terms.length) return [];
   return docs
     .map((doc) => {
-      const hay = `${doc.title} ${doc.farmerLine} ${doc.farmerLineSw ?? ''} ${doc.body} ${doc.topics.join(' ')} ${doc.valueChains.join(' ')} wadudu ugonjwa mvua bei maziwa`.toLocaleLowerCase();
+      const hay = `${doc.title} ${doc.farmerLine} ${doc.farmerLineSw ?? ''} ${doc.body} ${doc.topics.join(' ')} ${doc.valueChains.join(' ')} wadudu ugonjwa mvua bei maziwa mahindi chai kahawa kuku samaki`.toLocaleLowerCase();
       let score = terms.reduce((sum, term) => sum + (hay.includes(term) ? 2 : 0), 0);
       if (sector && doc.valueChains.some((item) => item.toLocaleLowerCase() === sector.toLocaleLowerCase())) score += 3;
       score += Math.max(0, 7 - (doc.authorityTier.charCodeAt(0) - 64));
@@ -45,7 +45,7 @@ export function searchAgriKnowledge(question: string, sector?: string, limit = 3
         score
       };
     })
-    .filter((item) => item.score >= 4)
+    .filter((item) => item.score >= 3)
     .sort((a, b) => b.score - a.score || a.authorityTier.localeCompare(b.authorityTier))
     .slice(0, limit);
 }

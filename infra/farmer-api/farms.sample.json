@@ -1,0 +1,9 @@
+[
+  {
+    "id": "demo-farm-1",
+    "name": "Nyeri Demo Farm",
+    "latitude": -0.4201,
+    "longitude": 36.9476,
+    "exposure": { "poorDrainage": true }
+  }
+]

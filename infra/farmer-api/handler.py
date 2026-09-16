@@ -28,6 +28,7 @@ from ask_llm import provider_info, rewrite_answer
 from knowledge import search_knowledge
 from market_intelligence import nearby_intelligence
 from places_intelligence import find_duplicate, nearby_places
+from weather_api import handle_weather_routes
 
 TABLE_NAME = os.environ["TABLE_NAME"]
 JWT_SECRET = os.environ["JWT_SECRET"]
@@ -86,7 +87,38 @@ def route(method: str, path: str, event: dict[str, Any]):
     if path.startswith("/api/v1/auth/") and CORE_API_URL:
         return proxy_core(method, path, event)
 
-    farmer = require_farmer(event) if path.startswith("/api/v1/farmer/") else None
+    # Weather EWS routes may be farmer-auth or ops; resolve farmer when bearer present.
+    farmer = None
+    if path.startswith("/api/v1/farmer/") or path.startswith("/api/v1/weather-alerts") or path.startswith("/api/v1/impact-reports"):
+        farmer = require_farmer(event)
+    elif path.startswith("/api/v1/ops/weather/"):
+        # Staging: ops ingest can run with farmer token or without when WEATHER_OPS_OPEN=1
+        if os.environ.get("WEATHER_OPS_OPEN") == "1":
+            farmer = None
+        else:
+            try:
+                farmer = require_farmer(event)
+            except AuthError:
+                if path.endswith("/health") and method == "GET":
+                    farmer = None
+                else:
+                    raise
+
+    weather_response = handle_weather_routes(
+        method=method,
+        path=path,
+        event=event,
+        farmer=farmer,
+        table=table,
+        body=body(event) if method in ("POST", "PUT", "PATCH") else {},
+        respond=respond,
+        items=items,
+    )
+    if weather_response is not None:
+        return weather_response
+
+    if farmer is None and path.startswith("/api/v1/farmer/"):
+        farmer = require_farmer(event)
 
     if path == "/api/v1/farmer/submissions" and method == "POST":
         return submit(farmer, body(event), header(event, "idempotency-key"))
@@ -273,9 +305,9 @@ def ask_mkulima(farmer: dict[str, Any], payload: dict[str, Any]):
     if any(term in lowered for term in ("will i get a loan", "approve my loan", "score formula", "nitapata mkopo", "pre-approved", "preapproved")):
         return respond(200, ask_payload(
             "general",
-            "I can talk about your Passport, records and next step. I cannot promise a loan or show a score.",
+            "I can talk about farming, your Passport, records and everyday questions. I cannot promise a loan or show a score.",
             [],
-            ["What should I do first?"],
+            ["How is the weather for my farm?", "How is my production?"],
             [],
         ))
     if classify_risk(question) == "high":
@@ -654,7 +686,74 @@ def apply_side_effects(farmer: dict[str, Any], operation_type: str, payload: dic
         if name not in affiliations:
             affiliations.append(name)
         profile["affiliations"] = affiliations
+    if operation_type == "IDENTITY_CLAIM" or payload.get("attribute") == "national_id":
+        save_national_id_claim(farmer, payload, now, profile)
+    if "CORRECTION" in operation_type:
+        case_id = str(payload.get("id") or uuid.uuid4())
+        put_child(
+            farmer["msid"],
+            f"CORRECTION#{case_id}",
+            {
+                "id": case_id,
+                "entityType": payload.get("entityType") or "farm",
+                "entityId": payload.get("entityId"),
+                "field": payload.get("field"),
+                "currentValue": payload.get("currentValue"),
+                "proposedValue": payload.get("proposedValue"),
+                "reason": payload.get("reason"),
+                "status": "DISPUTED",
+                "farmerLabel": "You challenged this",
+                "verification": "SELF_REPORTED",
+                "createdAt": now,
+            },
+        )
+        profile["lastUpdated"] = now
+        profile["recordFreshness"] = "Correction pending review"
     save_profile(farmer["msid"], profile)
+
+
+def save_national_id_claim(farmer: dict[str, Any], payload: dict[str, Any], now: str, profile: dict[str, Any]):
+    """Index national ID hash for SACCO/bank matching. Never store raw ID in PROFILE analytics fields."""
+    masked = str(payload.get("nationalIdMasked") or "").strip()
+    raw = re.sub(r"\D", "", str(payload.get("nationalId") or ""))
+    # Client usually sends only the masked claim; full ID may arrive in a secured sync later.
+    if not masked and len(raw) >= 6:
+        masked = f"****{raw[-4:]}"
+    if not masked and not raw:
+        return
+    profile["hasNationalId"] = True
+    profile["nationalIdMasked"] = masked or profile.get("nationalIdMasked") or "Added"
+    profile["identityVerified"] = False
+    profile["lastUpdated"] = now
+    profile["recordFreshness"] = "National ID added by you"
+    claim = {
+        "msid": farmer["msid"],
+        "nationalIdMasked": profile["nationalIdMasked"],
+        "hasNationalId": True,
+        "verification": "SELF_REPORTED",
+        "source": "FARMER_APP",
+        "updatedAt": now,
+    }
+    if raw and 6 <= len(raw) <= 12:
+        claim["nationalIdHash"] = sha(raw)
+        id_key = sha(raw)
+    else:
+        id_key = str(payload.get("nationalIdHash") or "").strip()
+        if id_key:
+            claim["nationalIdHash"] = id_key
+    if claim.get("nationalIdHash"):
+        table.put_item(
+            Item={
+                "pk": f"NATIONAL_ID#{claim['nationalIdHash']}",
+                "sk": "IDENTITY",
+                "msid": farmer["msid"],
+                "nationalIdMasked": profile["nationalIdMasked"],
+                "verification": "SELF_REPORTED",
+                "created_at": now,
+                "ttl": int(time.time()) + 60 * 60 * 24 * 365 * 10,
+            }
+        )
+    put_child(farmer["msid"], "IDENTITY#NATIONAL_ID", claim)
 
 
 def save_contributed_place(farmer: dict[str, Any], payload: dict[str, Any], now: str):
@@ -865,7 +964,8 @@ def title_for(operation_type: str) -> str:
         "FARMER_SALE_SUBMITTED": "Sale saved",
         "FARMER_COST_SUBMITTED": "Cost saved",
         "FARMER_EVIDENCE_SUBMITTED": "Record saved",
-        "FARMER_CORRECTION_SUBMITTED": "Correction saved",
+        "FARMER_CORRECTION_SUBMITTED": "Correction case opened",
+        "IDENTITY_CLAIM": "National ID added",
         "INSTITUTION_LINK_REQUESTED": "Institution connection requested",
     }
     return mapping.get(operation_type, "Update saved")

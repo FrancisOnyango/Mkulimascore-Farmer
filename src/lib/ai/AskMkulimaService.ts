@@ -7,6 +7,7 @@ import { buildFarmerContextPacket } from '@/lib/ai/farmerContext';
 import { detectAskLanguage, localizeAskList, localizeAskText } from '@/lib/i18n/askLanguage';
 import { fieldConditionLine } from '@/lib/eo/farmerCopy';
 import { inferFarmCycle } from '@/lib/intelligence/cycle';
+import { buildEarlyWarnings, rankActiveWarnings } from '@/lib/warnings/engine';
 import * as Crypto from 'expo-crypto';
 import type { AskDraft, AskRisk } from '@/domain/ask';
 import type {
@@ -203,7 +204,26 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     return noData('climate', 'No season note is saved for this farm yet.', ['Keep your own rainfall and planting dates.'], ['How is the weather for my farm?'], 'Season note');
   }
 
-  if (hasAny(question, ['alert', 'warning', 'urgent', 'onyo', 'tahadhari', 'hatari'])) {
+  if (hasAny(question, ['alert', 'warning', 'urgent', 'onyo', 'tahadhari', 'hatari', 'preparedness', 'early warning'])) {
+    const farm = context.farms[0];
+    const ews = rankActiveWarnings(buildEarlyWarnings({
+      farm,
+      enterprises: context.enterprises.filter((item) => !farm || item.farmId === farm.id),
+      weather: context.weather[0],
+      exposure: farm?.exposure,
+      language: context.language === 'sw' ? 'sw' : 'en'
+    }));
+    if (ews[0]) {
+      const top = ews[0];
+      sources.push(source(top.sourceLabel, top.issuedAt, 'Preparedness watches are not official KMD or NDMA warnings unless labelled Official.'));
+      return {
+        intent: 'alerts',
+        answer: `${top.title}. ${top.plainLanguageMessage} First action: ${top.actions[0]?.label ?? 'Stay safe'}. Open Early warning for the full plan.`,
+        recommendations: top.actions.slice(0, 3).map((action) => action.label),
+        followUps: ['How is the weather for my farm?', 'What should I do after heavy rain?'],
+        sources
+      };
+    }
     if (alert) {
       sources.push(source('Saved farm alerts on this phone', alert.createdAt, 'An alert is a reminder from saved data, not a guarantee.'));
       return {
@@ -214,7 +234,7 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
         sources
       };
     }
-    return noData('alerts', 'No farm alert is waiting on this phone.', [], ['How is the weather for my farm?', 'How is my production?'], 'Farm alerts');
+    return noData('alerts', 'No farm alert or preparedness watch is waiting on this phone.', [], ['How is the weather for my farm?', 'How is my production?'], 'Farm alerts');
   }
 
   if (hasAny(question, ['what did i sell', 'sold last', 'sales last', 'last month sale', 'niliuza', 'mauzo yangu'])) {
@@ -433,9 +453,13 @@ function routeQuestion(question: string, context: AskMkulimaContext): IntentResu
     };
   }
 
+  if (isOpenAskQuestion(question) || question.split(' ').length >= 3) {
+    return openConversationAnswer(question, context, talk);
+  }
+
   return {
     intent: 'chat',
-    answer: `${talk.firstName ? `${talk.firstName}, I ` : 'I '}heard you. ${talk.oneLiner} Tell me a bit more — weather, a price, milk, or what you saw on the farm — and I will look it up in this farm book. If it is not there, I will say so rather than guess.`,
+    answer: `${talk.firstName ? `${talk.firstName}, I ` : 'I '}am listening. Ask me about farming, weather, markets, your records, or a general question. I will use your farm book and published guidance, and I will say when I do not know.`,
     recommendations: [],
     followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'How is my production?'],
     sources: talk.sources
@@ -518,10 +542,12 @@ function knowledgeAnswer(
 ): IntentResult | null {
   if (!hasAny(question, [
     'armyworm', 'blight', 'wilt', 'pest', 'disease', 'what is wrong',
-    'yellow leaves', 'spots', 'scout', 'extension', 'kalro', 'pcpb', 'cabi'
+    'yellow leaves', 'spots', 'scout', 'extension', 'kalro', 'pcpb', 'cabi',
+    'plant maize', 'soil', 'feed', 'compost', 'manure', 'irrigation', 'weeding',
+    'drought', 'fall armyworm', 'yellowing', 'wilted', 'fungus', 'ticks'
   ])) return null;
   const enterprise = context.enterprises.find((item) => item.primary) ?? context.enterprises[0];
-  const hits = searchAgriKnowledge(question, enterprise?.sector, 3, context.language);
+  const hits = searchAgriKnowledge(question, enterprise?.sector, 4, context.language);
   if (!hits.length) return null;
   hits.forEach((hit) => {
     sources.push(source(`${hit.sourceOrganisation} guidance`, '', `Tier ${hit.authorityTier}. Published guidance, not a farm visit. ${hit.sourceUrl}`));
@@ -529,7 +555,7 @@ function knowledgeAnswer(
   return {
     intent: 'general',
     answer: layered(
-      enterprise ? `${enterprise.name} is recorded at ${enterprise.productionValue} ${enterprise.productionMetric}.` : `I am looking at ${talk.farmLine}.`,
+      enterprise ? `${enterprise.name} is on this farm book.` : `I am looking at ${talk.farmLine}.`,
       talk.oneLiner,
       knowledgeLines(hits).join(' ')
     ),
@@ -537,6 +563,52 @@ function knowledgeAnswer(
     followUps: ['How is the weather for my farm?', 'Where can I buy inputs near my farm?'],
     sources,
     risk: 'medium'
+  };
+}
+
+/** Agricultural or everyday questions that should get a real answer, not a redirect to “update your profile”. */
+function isOpenAskQuestion(question: string) {
+  return hasAny(question, [
+    'what is', 'what are', 'what does', 'how do', 'how can', 'how to', 'why', 'when should', 'when to',
+    'tell me', 'explain', 'ni nini', 'nifanyeje', 'inafanyaje', 'kwa nini', 'linamaanisha',
+    'maize', 'mahindi', 'dairy', 'milk', 'maziwa', 'coffee', 'kahawa', 'tea', 'chai',
+    'avocado', 'poultry', 'kuku', 'beans', 'ndengu', 'potato', 'viazi', 'tomato', 'nyanya',
+    'rice', 'mchele', 'livestock', 'ngombe', "ng'ombe", 'soil', 'udongo', 'rain', 'mvua',
+    'drought', 'ukame', 'fertilizer', 'mbolea', 'compost', 'manure', 'samadi', 'irrigation',
+    'weeding', 'harvest', 'mavuno', 'planting', 'kupanda', 'feed', 'chakula cha ngombe',
+    'season', 'mawazo', 'agriculture', 'farming', 'kilimo', 'crop', 'zao',
+    'who is', 'where is kenya', 'capital of', 'hello neighbour', 'good day'
+  ]);
+}
+
+function openConversationAnswer(
+  question: string,
+  context: AskMkulimaContext,
+  talk: ReturnType<typeof farmTalk>
+): IntentResult {
+  const enterprise = context.enterprises.find((item) => item.primary) ?? context.enterprises[0];
+  const hits = searchAgriKnowledge(question, enterprise?.sector, 3, context.language);
+  const sources: AskMkulimaSource[] = [...talk.sources];
+  hits.forEach((hit) => {
+    sources.push(source(`${hit.sourceOrganisation} guidance`, '', `Tier ${hit.authorityTier}. Published guidance, not a farm visit.`));
+  });
+  const knowledgeBit = hits.length ? knowledgeLines(hits).join(' ') : null;
+  const farmBit = enterprise
+    ? `${enterprise.name} is on your farm book for ${talk.farmLine}.`
+    : `Your farm book is open for ${talk.farmLine}.`;
+  return {
+    intent: 'general',
+    answer: knowledgeBit
+      ? layered(farmBit, talk.oneLiner, knowledgeBit)
+      : layered(
+        farmBit,
+        talk.oneLiner,
+        `About your question: I will answer from published Kenya farm guidance and general knowledge where it is safe. I will not invent a price, a spray, a veterinary dose, or a loan. If this needs a farm visit, county extension or a vet, I will say so.`
+      ),
+    recommendations: [],
+    followUps: ['How is the weather for my farm?', 'What is the latest price near me?', 'How is my production?'],
+    sources,
+    risk: 'low'
   };
 }
 

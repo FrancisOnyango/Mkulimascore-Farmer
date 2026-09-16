@@ -33,7 +33,8 @@ import type {
 import type { AgriculturalPlace } from '@/domain/places';
 import { FARMER_CONSENT_VERSION } from '@/domain/types';
 import { centroid, GPS_AREA_ACCURACY_M, polygonAcres } from '@/lib/geo/geo';
-import { maskPhone } from '@/lib/phone/kenya';
+import { maskPhone, maskNationalId, normalizeNationalId, isPlausibleNationalId } from '@/lib/phone/kenya';
+import { setStoredNationalId } from '@/lib/session/sessionStore';
 import { summarizeEnterprise } from '@/lib/onboarding/enterprises';
 import type { FarmerProjection } from '@/lib/api/projection';
 import { setStoredMsid } from '@/lib/session/sessionStore';
@@ -128,6 +129,17 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS personalized_alerts (
       id TEXT PRIMARY KEY NOT NULL,
       category TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS warning_acks (
+      alert_id TEXT PRIMARY KEY NOT NULL,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS impact_cases (
+      id TEXT PRIMARY KEY NOT NULL,
+      farm_id TEXT NOT NULL,
       data TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
@@ -1460,10 +1472,15 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
     recordFreshness: 'Just started'
   };
 
+  const nationalId = draft.nationalId ? normalizeNationalId(draft.nationalId) : '';
+  const hasNationalId = isPlausibleNationalId(nationalId);
+
   const passport: Passport = {
     ...current,
     displayName: draft.displayName?.trim() || current.displayName || 'Farmer',
     phoneMasked: draft.phone ? maskPhone(draft.phone) : current.phoneMasked,
+    nationalIdMasked: hasNationalId ? maskNationalId(nationalId) : current.nationalIdMasked,
+    hasNationalId: hasNationalId || Boolean(current.hasNationalId),
     location: draft.county || location || current.location,
     lastUpdated: now,
     affiliations: draft.institutionName ? [draft.institutionName] : [],
@@ -1473,11 +1490,26 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
     readinessLabel: farm && enterprises.length ? 'Good progress' : 'Just getting started'
   };
 
+  if (hasNationalId) {
+    await setStoredNationalId(nationalId);
+  }
+
   await db.withTransactionAsync(async () => {
     await db.runAsync('INSERT OR REPLACE INTO passport (id, data, updated_at) VALUES (1, ?, ?)', JSON.stringify(passport), now);
     if (farm) await upsertJson(db, 'farms', farm.id, farm);
     for (const enterprise of enterprises) {
       await upsertJson(db, 'enterprises', enterprise.id, enterprise, { farmId: enterprise.farmId });
+    }
+    if (hasNationalId) {
+      await enqueueOutbox(db, 'IDENTITY_CLAIM', {
+        attribute: 'national_id',
+        nationalIdMasked: maskNationalId(nationalId),
+        nationalIdHash: await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nationalId),
+        hasNationalId: true,
+        verification: 'SELF_REPORTED',
+        source: 'FARMER_APP',
+        provenance: 'FARMER_REPORTED'
+      });
     }
     if (draft.consentAcceptedAt) {
       const consent: ConsentGrant = {
@@ -1536,6 +1568,53 @@ export async function completeSelfOnboarding(draft: OnboardingDraft) {
   return { passport, farm, enterprises };
 }
 
+export async function saveNationalIdClaim(nationalIdRaw: string) {
+  await initDb();
+  const db = await getDb();
+  const nationalId = normalizeNationalId(nationalIdRaw);
+  if (!isPlausibleNationalId(nationalId)) {
+    throw new Error('NATIONAL_ID_INVALID');
+  }
+  const now = new Date().toISOString();
+  const current = (await getPassport()) ?? {
+    msid: '',
+    displayName: 'Farmer',
+    phoneMasked: '',
+    location: '',
+    identityVerified: false,
+    profileStatus: 'attention' as const,
+    lastUpdated: now,
+    readiness: 'not_ready' as const,
+    readinessLabel: 'Building your farm profile',
+    affiliations: [] as string[],
+    evidenceStatus: 'Added by you',
+    recordFreshness: 'Just started'
+  };
+  const passport: Passport = {
+    ...current,
+    nationalIdMasked: maskNationalId(nationalId),
+    hasNationalId: true,
+    lastUpdated: now,
+    recordFreshness: 'National ID added by you'
+  };
+  await setStoredNationalId(nationalId);
+  const nationalIdHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, nationalId);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('INSERT OR REPLACE INTO passport (id, data, updated_at) VALUES (1, ?, ?)', JSON.stringify(passport), now);
+    await enqueueOutbox(db, 'IDENTITY_CLAIM', {
+      attribute: 'national_id',
+      nationalIdMasked: passport.nationalIdMasked,
+      nationalIdHash,
+      hasNationalId: true,
+      verification: 'SELF_REPORTED',
+      source: 'FARMER_APP',
+      provenance: 'FARMER_REPORTED'
+    });
+    await addActivity(db, 'passport', 'National ID added', 'Added by you — useful for SACCO and bank matching', now);
+  });
+  return passport;
+}
+
 export async function applyFarmerProjection(projection: FarmerProjection) {
   await initDb();
   const db = await getDb();
@@ -1547,6 +1626,8 @@ export async function applyFarmerProjection(projection: FarmerProjection) {
       msid: nextMsid,
       displayName: projection.passport?.displayName || current?.displayName || '',
       phoneMasked: projection.passport?.phoneMasked || current?.phoneMasked || '',
+      nationalIdMasked: projection.passport?.nationalIdMasked || current?.nationalIdMasked,
+      hasNationalId: projection.passport?.hasNationalId ?? current?.hasNationalId ?? false,
       location: projection.passport?.location || current?.location || '',
       identityVerified: projection.passport?.identityVerified ?? current?.identityVerified ?? false,
       profileStatus: projection.passport?.profileStatus ?? current?.profileStatus ?? 'attention',
@@ -1726,6 +1807,124 @@ function fieldLookLabel(look: FieldLook) {
   if (look === 'planted') return 'Looks planted now';
   if (look === 'mixed') return 'Some planted, some open';
   return 'Looks bare now';
+}
+
+export async function acknowledgeWarning(alertId: string, selectedActionId?: string) {
+  await initDb();
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const payload = {
+    alertId,
+    selectedActionId: selectedActionId ?? null,
+    acknowledgedAt: now,
+    source: 'FARMER_APP',
+    provenance: 'FARMER_REPORTED'
+  };
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT OR REPLACE INTO warning_acks (alert_id, data, created_at) VALUES (?, ?, ?)',
+      alertId,
+      JSON.stringify(payload),
+      now
+    );
+    await enqueueOutbox(db, 'FARMER_WARNING_ACK', payload);
+    await addActivity(db, 'weather', 'Early warning acknowledged', selectedActionId ? `Action: ${selectedActionId}` : 'I understand', now);
+  });
+  return payload;
+}
+
+export async function listWarningAcks(): Promise<Record<string, { acknowledgedAt: string; selectedActionId?: string | null }>> {
+  await initDb();
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ alert_id: string; data: string }>('SELECT alert_id, data FROM warning_acks');
+  const map: Record<string, { acknowledgedAt: string; selectedActionId?: string | null }> = {};
+  for (const row of rows) {
+    try {
+      const parsed = JSON.parse(row.data) as { acknowledgedAt?: string; selectedActionId?: string | null };
+      map[row.alert_id] = {
+        acknowledgedAt: parsed.acknowledgedAt ?? '',
+        selectedActionId: parsed.selectedActionId ?? null
+      };
+    } catch {
+      // skip corrupt rows
+    }
+  }
+  return map;
+}
+
+export async function reportWarningImpact(input: {
+  alertId?: string;
+  farmId: string;
+  enterpriseId?: string;
+  impactType: 'crop' | 'livestock' | 'storage' | 'access' | 'infrastructure' | 'other';
+  narrative: string;
+  safeToAssess: boolean;
+  quantity?: string;
+  evidenceUri?: string | null;
+}) {
+  await initDb();
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const id = Crypto.randomUUID();
+  const impact = {
+    id,
+    alertId: input.alertId,
+    farmId: input.farmId,
+    enterpriseId: input.enterpriseId,
+    impactType: input.impactType,
+    quantity: input.quantity,
+    narrative: input.narrative,
+    safeToAssess: input.safeToAssess,
+    provisionalStatus: 'PROVISIONAL' as const,
+    createdAt: now,
+    evidenceUri: input.evidenceUri ?? null,
+    source: 'FARMER_APP',
+    provenance: 'FARMER_REPORTED'
+  };
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO impact_cases (id, farm_id, data, created_at) VALUES (?, ?, ?, ?)',
+      id,
+      input.farmId,
+      JSON.stringify(impact),
+      now
+    );
+    await enqueueOutbox(db, 'FARMER_IMPACT_CASE', impact);
+    await addActivity(db, 'weather', 'Provisional impact noted', `${input.impactType}: ${input.narrative.slice(0, 80)}`, now);
+  });
+  return impact;
+}
+
+export async function listImpactCases(farmId?: string) {
+  await initDb();
+  const db = await getDb();
+  const rows = farmId
+    ? await db.getAllAsync<{ data: string }>('SELECT data FROM impact_cases WHERE farm_id = ? ORDER BY created_at DESC', farmId)
+    : await db.getAllAsync<{ data: string }>('SELECT data FROM impact_cases ORDER BY created_at DESC');
+  return rows.map((row) => JSON.parse(row.data));
+}
+
+export async function saveFarmExposure(farmId: string, exposure: NonNullable<Farm['exposure']>) {
+  await initDb();
+  const farm = await getFarm(farmId);
+  if (!farm) throw new Error('Farm not found');
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const next: Farm = {
+    ...farm,
+    exposure: { ...exposure, notedAt: now }
+  };
+  await db.withTransactionAsync(async () => {
+    await upsertJson(db, 'farms', next.id, next);
+    await enqueueOutbox(db, 'FARM_EXPOSURE_UPDATED', {
+      farmId,
+      exposure: next.exposure,
+      source: 'FARMER_APP',
+      provenance: 'FARMER_REPORTED'
+    });
+    await addActivity(db, 'farm', 'Farm exposure updated', 'Used for preparedness watches — added by you', now);
+  });
+  return next;
 }
 
 export async function requestBoundaryVerification(farmId: string) {

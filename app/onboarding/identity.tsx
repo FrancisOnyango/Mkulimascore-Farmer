@@ -91,8 +91,8 @@ export default function Identity() {
         keyboardType="number-pad"
         autoComplete="off"
         onChangeText={(nationalId) => setDraft((current) => ({ ...current, nationalId }))}
-        placeholder="Optional"
-        hint="Stays on this phone unless you later share it."
+        placeholder="Optional now. Useful when a SACCO or bank looks you up."
+        hint="Stays on this phone as added by you until verified. SACCOs and banks often match members by ID number."
       />
       <Caption style={{ marginBottom: spacing.sm }}>{strings.identity.language}</Caption>
       <View style={styles.langRow}>

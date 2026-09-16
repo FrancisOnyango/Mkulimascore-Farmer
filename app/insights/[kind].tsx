@@ -11,10 +11,15 @@ import { FarmerAppService } from '@/application/FarmerAppService';
 import { useAppData } from '@/context/AppDataContext';
 import { linkedMarkets } from '@/lib/markets/linkage';
 import { marketOpportunities, priceHonesty } from '@/lib/markets/opportunity';
+import { buildWeatherWindows } from '@/lib/weather/windows';
+import { loadFarmEarlyWarnings } from '@/lib/warnings/load';
+import { AlertCard } from '@/components/AlertCard';
 import type { FarmerMarketNote } from '@/domain/types';
+import type { FarmerAlert } from '@/domain/warnings';
 import { colors, radius, spacing } from '@/constants/theme';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { freshnessLabel, getFreshness } from '@/lib/utils/format';
+import { weatherFreshnessLabel } from '@/lib/weather/liveWeather';
 
 const labels: Record<string, string> = {
   farm: 'Farm',
@@ -29,14 +34,28 @@ const labels: Record<string, string> = {
 
 export default function InsightCategory() {
   const { kind } = useLocalSearchParams<{ kind: string }>();
-  const { insights, weather, climate, markets, enterprises, farms, selectedFarmId, refresh } = useAppData();
+  const { insights, weather, climate, markets, enterprises, farms, selectedFarmId, refresh, settings } = useAppData();
   const selectedFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
   const [notes, setNotes] = useState<FarmerMarketNote[]>([]);
   const [priceKes, setPriceKes] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
+  const [earlyWarnings, setEarlyWarnings] = useState<FarmerAlert[]>([]);
   useEffect(() => {
     void FarmerAppService.listFarmerMarketNotes().then(setNotes);
   }, [kind]);
+  useEffect(() => {
+    if (kind !== 'weather' || !selectedFarm) {
+      setEarlyWarnings([]);
+      return;
+    }
+    const farmWeather = weather.find((item) => item.farmId === selectedFarm.id);
+    void loadFarmEarlyWarnings({
+      farm: selectedFarm,
+      enterprises: enterprises.filter((item) => item.farmId === selectedFarm.id),
+      weather: farmWeather,
+      language: settings.language
+    }).then(setEarlyWarnings);
+  }, [kind, selectedFarm?.id, selectedFarm?.exposure?.notedAt, weather, enterprises, settings.language]);
   const linkage = linkedMarkets({ farm: selectedFarm, enterprises, liveMarkets: markets, farmerNotes: notes });
   const opportunities = marketOpportunities({ farm: selectedFarm, enterprises, liveMarkets: markets, farmerNotes: notes, limit: 3 });
   const selectedKind = kind ?? '';
@@ -66,14 +85,38 @@ export default function InsightCategory() {
 
       {selectedKind === 'weather' ? (
         <View style={{ gap: spacing.md }}>
-          {farmWeather.length ? farmWeather.map((item) => (
+          {earlyWarnings.length ? (
+            <View>
+              <Caption style={{ marginBottom: spacing.sm }}>Preparedness timeline</Caption>
+              {earlyWarnings.map((alert) => (
+                <AlertCard
+                  key={alert.id}
+                  alert={alert}
+                  onOpen={() => router.push(`/warnings/${encodeURIComponent(alert.id)}?farmId=${alert.farmId}` as never)}
+                />
+              ))}
+            </View>
+          ) : null}
+          {farmWeather.length ? farmWeather.map((item) => {
+            const windows = buildWeatherWindows(item, enterprises.filter((enterprise) => enterprise.farmId === item.farmId));
+            return (
             <Card key={item.id}>
               <Caption>{item.farmName} · {item.location}</Caption>
               <H3 style={{ marginTop: spacing.xs }}>{item.condition}</H3>
+              <Caption style={{ marginTop: spacing.xs }}>Forecast for the farm place — not a measured rainfall.</Caption>
+              <Caption style={{ marginTop: spacing.xs, color: colors.water }}>{weatherFreshnessLabel(item)}</Caption>
+              {item.sourceDisclaimer ? <Caption style={{ marginTop: 4 }}>{item.sourceDisclaimer}</Caption> : null}
+              {item.forecastCellId ? <Caption style={{ marginTop: 2 }}>Forecast cell {item.forecastCellId}</Caption> : null}
               <View style={styles.metricGrid}>
                 <Metric label="Rain chance" value={`${item.rainProbabilityPct}%`} />
                 <Metric label="Temperature" value={`${item.temperatureLowC}–${item.temperatureHighC}°C`} />
               </View>
+              {windows.map((window) => (
+                <View key={window.id} style={styles.window}>
+                  <Caption style={{ color: colors.brand, fontWeight: '800' }}>{window.title}</Caption>
+                  <Body style={{ marginTop: 4 }}>{window.line}</Body>
+                </View>
+              ))}
               <View style={styles.forecastStrip}>
                 {item.forecast.slice(0, 5).map((day) => (
                   <View key={day.day} style={styles.forecastDay}>
@@ -84,9 +127,10 @@ export default function InsightCategory() {
                 ))}
               </View>
               <Body style={{ marginTop: spacing.lg }}>{item.fieldActivityNote}</Body>
-              <Caption style={{ marginTop: spacing.md }}>{freshnessLabel(item.updatedAt)}</Caption>
+              <Caption style={{ marginTop: spacing.md }}>{windows[0]?.sourceLabel ?? 'Farm-place forecast'} · {freshnessLabel(item.updatedAt)}</Caption>
             </Card>
-          )) : <EmptyState title="Weather is not available yet" body="Mark a farm place, then refresh when you have a connection." action="Farm place" onAction={() => router.push(selectedFarm ? `/farm/map?farmId=${selectedFarm.id}` : '/(tabs)/farm')} />}
+            );
+          }) : <EmptyState title="Weather is not available yet" body="Mark a farm place, then refresh when you have a connection." action="Farm place" onAction={() => router.push(selectedFarm ? `/farm/map?farmId=${selectedFarm.id}` : '/(tabs)/farm')} />}
         </View>
       ) : null}
 
@@ -209,7 +253,7 @@ export default function InsightCategory() {
 }
 
 function leadFor(kind: string) {
-  if (kind === 'weather') return 'Forecast for the farm place — not the phone. Forecasts can change.';
+  if (kind === 'weather') return 'Forecast, preparedness watches and seasonal outlook for the farm place — forecasts can change. Mkulima never invents an official KMD or NDMA warning.';
   if (kind === 'markets') return 'Produce prices near the farm place — maize, milk, tomato, beans and more when the Ministry has reported them. We never invent a price.';
   if (kind === 'financial') return 'This is not a loan offer. It only describes how complete your farm information is.';
   if (kind === 'climate') return 'Seasonal context when a reliable location source exists.';
@@ -237,8 +281,9 @@ const styles = StyleSheet.create({
   metricGrid: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
   metric: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md },
   metricValue: { color: colors.ink, fontWeight: '800', marginTop: 4 },
+  window: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.waterSoft },
   forecastStrip: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  forecastDay: { flex: 1, minHeight: 74, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', padding: spacing.xs },
+  forecastDay: { flex: 1, minHeight: 74, backgroundColor: colors.brandSoft, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', padding: spacing.xs },
   forecastTemp: { color: colors.ink, fontWeight: '800', marginTop: 2 },
   price: { marginTop: spacing.md, fontSize: 22, lineHeight: 28, fontWeight: '800', color: colors.ink },
   actionButton: { alignSelf: 'flex-start', marginTop: spacing.lg, minHeight: 48, borderRadius: radius.md, backgroundColor: colors.brandDark, justifyContent: 'center', paddingHorizontal: spacing.lg },

@@ -146,6 +146,20 @@ export function farmerActions(input: {
     });
   }
 
+  if (input.passport && !input.passport.hasNationalId) {
+    actions.push({
+      id: 'national-id',
+      code: 'NATIONAL_ID_MISSING',
+      kind: 'EVIDENCE_IMPROVABLE',
+      priority: 58,
+      relevance: 0.52,
+      title: 'Add your national ID',
+      why: 'SACCOs and banks usually match members by ID number. Added by you until verified.',
+      cta: 'Open Passport',
+      route: '/passport'
+    });
+  }
+
   const climateAttention = input.climate?.find((item) => item.tone === 'attention');
   if (climateAttention) {
     actions.push({

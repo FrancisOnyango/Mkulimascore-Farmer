@@ -35,3 +35,19 @@ export function formatKenyaPhoneInput(value: string) {
   if (local.length <= 7) return `${local.slice(0, 4)} ${local.slice(4)}`;
   return `${local.slice(0, 4)} ${local.slice(4, 7)} ${local.slice(7)}`;
 }
+
+/** Kenya national ID / alien ID digits for display and matching. */
+export function normalizeNationalId(value: string) {
+  return digitsOnly(value).slice(0, 12);
+}
+
+export function maskNationalId(value: string) {
+  const digits = normalizeNationalId(value);
+  if (digits.length < 4) return 'Added';
+  return `****${digits.slice(-4)}`;
+}
+
+export function isPlausibleNationalId(value: string) {
+  const digits = normalizeNationalId(value);
+  return digits.length >= 6 && digits.length <= 12;
+}

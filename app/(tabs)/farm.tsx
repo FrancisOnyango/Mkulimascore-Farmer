@@ -10,23 +10,44 @@ import { EmptyState } from '@/components/EmptyState';
 import { AskBar } from '@/components/AskBar';
 import { FarmCard } from '@/components/FarmCard';
 import { NearbyPlaces } from '@/components/NearbyPlaces';
+import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAppData } from '@/context/AppDataContext';
+import { FarmerAppService } from '@/application/FarmerAppService';
 import { formatFarmArea } from '@/lib/utils/format';
 import { listFarmerPlaces } from '@/db/database';
 import type { AgriculturalPlace, PlaceFilter } from '@/domain/places';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
 import { listNearbyPlaces } from '@/lib/places/nearby';
-import { colors, spacing } from '@/constants/theme';
+import { colors, radius, spacing } from '@/constants/theme';
+
+const EXPOSURE_OPTIONS = [
+  { key: 'nearWaterway' as const, label: 'Near a river, stream or drain' },
+  { key: 'poorDrainage' as const, label: 'Poor drainage / waterlogging' },
+  { key: 'steepSlope' as const, label: 'Steep slope or landslide risk' },
+  { key: 'singleAccessRoad' as const, label: 'Single access road' },
+  { key: 'fragileStorage' as const, label: 'Fragile storage or roof' }
+];
 
 export default function Farms() {
-  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId, weather, climate, consents, passport, activity, markets, ready } = useAppData();
+  const { farms, enterprises, records, selectedFarmId, setSelectedFarmId, weather, climate, consents, passport, activity, markets, ready, refresh } = useAppData();
   const [placeFilter, setPlaceFilter] = useState<PlaceFilter | null>(null);
   const [farmerPlaces, setFarmerPlaces] = useState<AgriculturalPlace[]>([]);
+  const [exposureDraft, setExposureDraft] = useState<Record<string, boolean>>({});
+  const [savingExposure, setSavingExposure] = useState(false);
   useEffect(() => {
     if (!ready) return;
     void listFarmerPlaces().then(setFarmerPlaces);
   }, [ready]);
   const primaryFarm = farms.find((farm) => farm.id === selectedFarmId) ?? farms[0];
+  useEffect(() => {
+    setExposureDraft({
+      nearWaterway: Boolean(primaryFarm?.exposure?.nearWaterway),
+      poorDrainage: Boolean(primaryFarm?.exposure?.poorDrainage),
+      steepSlope: Boolean(primaryFarm?.exposure?.steepSlope),
+      singleAccessRoad: Boolean(primaryFarm?.exposure?.singleAccessRoad),
+      fragileStorage: Boolean(primaryFarm?.exposure?.fragileStorage)
+    });
+  }, [primaryFarm?.id, primaryFarm?.exposure?.notedAt]);
   const farmEnterprises = enterprises.filter((enterprise) => enterprise.farmId === primaryFarm?.id);
   const farmRecords = records.filter((record) => !record.associatedFarmId || record.associatedFarmId === primaryFarm?.id);
   const verifiedRecords = farmRecords.filter((record) => record.status === 'verified').length;
@@ -61,6 +82,24 @@ export default function Farms() {
     farmEnterprises.length === 0 ? 'Add an enterprise' : null,
     farmRecords.length === 0 ? 'Add a production record' : null
   ].filter(Boolean) as string[] : [];
+
+  async function saveExposure() {
+    if (!primaryFarm) return;
+    setSavingExposure(true);
+    try {
+      await FarmerAppService.saveFarmExposure(primaryFarm.id, {
+        nearWaterway: Boolean(exposureDraft.nearWaterway),
+        poorDrainage: Boolean(exposureDraft.poorDrainage),
+        steepSlope: Boolean(exposureDraft.steepSlope),
+        singleAccessRoad: Boolean(exposureDraft.singleAccessRoad),
+        fragileStorage: Boolean(exposureDraft.fragileStorage)
+      });
+      await refresh();
+    } finally {
+      setSavingExposure(false);
+    }
+  }
+
   return (
     <AppShell ask={{ screen: 'farm', farmId: primaryFarm?.id }}>
       <H1>My Farm</H1>
@@ -121,6 +160,39 @@ export default function Farms() {
                 : 'Location, enterprises and records are in place. Keep them current as the farm changes.')}
             </Body>
             {twin?.comparison ? <Caption style={{ marginTop: spacing.sm }}>{twin.comparison.line}</Caption> : null}
+          </Card>
+
+          <Card style={styles.exposureCard}>
+            <Caption>Early-warning exposure</Caption>
+            <H3 style={{ marginTop: spacing.xs }}>What can raise risk here?</H3>
+            <Body style={{ marginTop: spacing.sm, color: colors.muted }}>
+              Used only to sharpen preparedness watches — not an official flood or drought map. Added by you until verified.
+            </Body>
+            <View style={styles.exposureList}>
+              {EXPOSURE_OPTIONS.map((option) => {
+                const on = Boolean(exposureDraft[option.key]);
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => setExposureDraft((prev) => ({ ...prev, [option.key]: !on }))}
+                    style={[styles.exposureRow, on && styles.exposureRowOn]}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on }}
+                  >
+                    <Text style={[styles.exposureCheck, on && styles.exposureCheckOn]}>{on ? '✓' : ''}</Text>
+                    <Text style={[styles.exposureLabel, on && styles.exposureLabelOn]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <PrimaryButton
+              label={savingExposure ? 'Saving...' : 'Save exposure'}
+              disabled={savingExposure}
+              onPress={() => void saveExposure()}
+            />
+            {primaryFarm.exposure?.notedAt ? (
+              <Caption style={{ marginTop: spacing.sm }}>Last updated {new Date(primaryFarm.exposure.notedAt).toLocaleDateString('en-KE')}</Caption>
+            ) : null}
           </Card>
 
           <Card style={styles.overviewCard}>
@@ -203,36 +275,28 @@ function Metric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   lead: { color: colors.muted, marginTop: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
-  addButton: { width: 44, height: 44, borderRadius: 8, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
+  addButton: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
   addText: { color: '#fff', fontSize: 24, lineHeight: 28, fontWeight: '900' },
   switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
-  farmChip: { minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  farmChip: { minHeight: 38, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
   farmChipActive: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   farmChipText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
   farmChipTextActive: { color: '#fff' },
-  visualCard: { marginTop: spacing.xl, padding: 0, overflow: 'hidden' },
-  locationPanel: { minHeight: 156, backgroundColor: colors.surfaceAlt, justifyContent: 'center', padding: spacing.xl },
-  visualFooter: { padding: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
-  visualArea: { fontSize: 20, lineHeight: 26, color: colors.ink, fontWeight: '900' },
   progressCard: { marginTop: spacing.md, backgroundColor: colors.brandSoft, borderColor: '#C9E0D1' },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: 'rgba(23,100,59,0.14)', overflow: 'hidden', marginTop: spacing.lg },
-  progressFill: { height: '100%', borderRadius: 4, backgroundColor: colors.brand },
-  progressColumns: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.lg },
-  progressText: { fontSize: 13, lineHeight: 20, fontWeight: '700', marginTop: spacing.xs },
+  exposureCard: { marginTop: spacing.md, backgroundColor: colors.waterSoft, borderColor: '#B8E4F5' },
+  exposureList: { marginTop: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
+  exposureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, paddingHorizontal: spacing.md },
+  exposureRowOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  exposureCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.line, textAlign: 'center', lineHeight: 20, color: colors.brandDark, fontWeight: '800' },
+  exposureCheckOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark, color: '#fff' },
+  exposureLabel: { flex: 1, color: colors.text, fontWeight: '700', fontSize: 14 },
+  exposureLabelOn: { color: colors.ink },
   overviewCard: { marginTop: spacing.md },
-  diaryCard: { backgroundColor: colors.surfaceAlt },
-  diaryActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  diaryAction: { flex: 1, minHeight: 72, borderRadius: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, padding: spacing.sm, justifyContent: 'space-between' },
-  diarySymbol: { color: colors.brand, fontWeight: '900', fontSize: 11 },
-  economicsCard: { marginTop: spacing.md, backgroundColor: colors.warm, borderColor: '#E7D7AE' },
-  economicsStatus: { color: colors.warmInk, fontWeight: '900' },
-  economicsLink: { alignSelf: 'flex-start', marginTop: spacing.lg },
-  linkText: { color: colors.info, fontWeight: '900' },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, alignItems: 'flex-start' },
   farmCard: { overflow: 'hidden' },
   farmRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.brand },
   metrics: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
-  metricBox: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 6, padding: spacing.md },
+  metricBox: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.md },
   value: { fontWeight: '800', marginTop: 3 },
   rule: { height: 1, backgroundColor: colors.line, marginVertical: spacing.lg }
 });

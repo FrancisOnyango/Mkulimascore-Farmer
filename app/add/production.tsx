@@ -74,9 +74,13 @@ export default function AddProduction() {
       <H2>{dairy ? "Record today's milk" : 'Record production'}</H2>
       <Body style={styles.lead}>A short note is enough. It stays added by you until a partner confirms it.</Body>
       <Card style={{ marginTop: spacing.xl }}>
-        <Caption>Enterprise</Caption>
+        <Caption>Recording for</Caption>
         <H3 style={{ marginTop: 4 }}>{enterprise?.name ?? 'No enterprise available'}</H3>
-        <Caption style={{ marginTop: spacing.xs }}>{enterprise ? enterprise.sector : 'Add an enterprise before recording production.'}</Caption>
+        <Caption style={{ marginTop: spacing.xs }}>
+          {enterprise
+            ? `${enterprise.sector} · Added by you until a partner confirms it`
+            : 'Add an enterprise before recording production.'}
+        </Caption>
         {dairy ? (
           <>
             <Input label="Morning litres" value={draft.morning} onChangeText={(morning) => setDraft((current) => ({ ...current, morning }))} keyboardType="decimal-pad" placeholder="12" hint="What you delivered or stored this morning." />

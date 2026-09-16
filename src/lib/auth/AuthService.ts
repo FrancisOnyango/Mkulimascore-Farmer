@@ -1,5 +1,5 @@
 import { clearAccessToken, getAccessToken, setAccessToken } from '@/lib/auth/tokenStore';
-import { clearStoredMsid, setStoredMsid } from '@/lib/session/sessionStore';
+import { clearStoredMsid, clearStoredNationalId, setStoredMsid } from '@/lib/session/sessionStore';
 import { isPlausibleKenyaPhone } from '@/lib/phone/kenya';
 import {
   isTrialChallenge,
@@ -49,6 +49,7 @@ class DemoAuthService implements AuthService {
   async signOut() {
     await clearAccessToken();
     await clearStoredMsid();
+    await clearStoredNationalId();
   }
 }
 
@@ -135,6 +136,7 @@ class ProductionAuthService implements AuthService {
     } finally {
       await clearAccessToken();
       await clearStoredMsid();
+      await clearStoredNationalId();
     }
   }
 
