@@ -86,6 +86,6 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  logout: { minHeight: 52, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xxl },
-  logoutText: { color: colors.danger, fontWeight: '800', fontSize: 16 }
+  logout: { minHeight: 48, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xl, marginBottom: spacing.md },
+  logoutText: { color: colors.danger, fontWeight: '800', fontSize: 15 }
 });

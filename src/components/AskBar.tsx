@@ -23,10 +23,10 @@ export function AskBar({
       accessibilityLabel={title}
       style={({ pressed }) => [styles.bar, pressed && { opacity: 0.9 }]}
     >
-      <BrandMark size={36} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.detail}>{detail}</Text>
+      <BrandMark size={32} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        <Text style={styles.detail} numberOfLines={2}>{detail}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color={colors.faint} />
     </Pressable>
@@ -35,7 +35,7 @@ export function AskBar({
 
 const styles = StyleSheet.create({
   bar: {
-    minHeight: 64,
+    minHeight: 56,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -43,8 +43,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md
+    gap: spacing.sm
   },
-  title: { color: colors.ink, fontSize: 16, fontWeight: '800' },
-  detail: { color: colors.muted, fontSize: 13, marginTop: 2 }
+  title: { color: colors.ink, fontSize: 15, fontWeight: '800' },
+  detail: { color: colors.muted, fontSize: 12, marginTop: 2 }
 });

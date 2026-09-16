@@ -22,10 +22,10 @@ export function Eyebrow(props: TextProps) {
 }
 
 const styles = StyleSheet.create({
-  h1: { fontSize: 30, lineHeight: 38, fontWeight: '800', color: colors.ink },
-  h2: { fontSize: 24, lineHeight: 32, fontWeight: '800', color: colors.ink },
-  h3: { fontSize: 18, lineHeight: 26, fontWeight: '800', color: colors.ink },
-  body: { fontSize: 16, lineHeight: 24, color: colors.text },
-  caption: { fontSize: 14, lineHeight: 21, color: colors.muted },
-  eyebrow: { fontSize: 13, lineHeight: 18, fontWeight: '800', letterSpacing: 0.2, color: colors.brand }
+  h1: { fontSize: 26, lineHeight: 32, fontWeight: '800', color: colors.ink },
+  h2: { fontSize: 21, lineHeight: 28, fontWeight: '800', color: colors.ink },
+  h3: { fontSize: 17, lineHeight: 24, fontWeight: '800', color: colors.ink },
+  body: { fontSize: 15, lineHeight: 22, color: colors.text },
+  caption: { fontSize: 13, lineHeight: 19, color: colors.muted },
+  eyebrow: { fontSize: 12, lineHeight: 16, fontWeight: '800', letterSpacing: 0.2, color: colors.brand }
 });

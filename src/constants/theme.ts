@@ -44,6 +44,24 @@ export const spacing = {
   xxxl: 40
 } as const;
 
+/** Mobile chrome — keep screens, tab bar and FAB aligned. */
+export const layout = {
+  /** Horizontal inset for phone content (narrower than tablet). */
+  screenPad: 16,
+  screenPadWide: 20,
+  contentMaxWidth: 760,
+  /** Tab bar content row (icons + labels), excluding home-indicator inset. */
+  tabBarContent: 52,
+  tabBarIcon: 22,
+  tabBarLabel: 10,
+  /** Floating Ask control clearance above the tab bar. */
+  fabClearance: 64,
+  /** Extra scroll room under tab content when FAB is present. */
+  scrollFabExtra: 72,
+  /** Minimum scroll padding under tab screens without FAB. */
+  scrollTabExtra: 24
+} as const;
+
 export const shadow = {
   card: {
     shadowColor: '#0B1A10',
@@ -55,5 +73,5 @@ export const shadow = {
 };
 
 export const touch = {
-  min: 48
+  min: 44
 } as const;

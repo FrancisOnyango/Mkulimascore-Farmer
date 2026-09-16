@@ -24,8 +24,10 @@ import { startersForScreen } from '@/lib/ai/askPolicy';
 import { createAskMkulimaClient } from '@/lib/ai/AskMkulimaService';
 import { ASK_UI, localizeAskList } from '@/lib/i18n/askLanguage';
 import { getAskMkulimaIntegrationStatus, type AskMkulimaIntegrationStatus } from '@/lib/ai/AskMkulimaIntegration';
+import { useMobileLayout } from '@/hooks/useMobileLayout';
 import type { AskScreen } from '@/domain/ask';
 import type { AskActionCard, AskMkulimaMessage } from '@/domain/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const CONFIRMABLE_ACTIONS = new Set([
   'create_profile_update_request',
@@ -90,6 +92,8 @@ export default function AskMkulima() {
     ready
   } = useAppData();
   const ui = ASK_UI[settings.language];
+  const { screenPad, narrow } = useMobileLayout();
+  const insets = useSafeAreaInsets();
   const starters = useMemo(() => {
     const fromScreen = startersForScreen(screen, settings.language);
     if (fromScreen.length) return fromScreen;
@@ -228,14 +232,14 @@ export default function AskMkulima() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <AppShell scroll={false} contentStyle={styles.shell}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal: screenPad }]}>
           <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}>
             <Ionicons name="chevron-back" size={22} color={colors.brandDark} />
           </Pressable>
-          <BrandMark size={36} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{ui.title}</Text>
-            <Text style={styles.status}>
+          <BrandMark size={narrow ? 32 : 36} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.title} numberOfLines={1}>{ui.title}</Text>
+            <Text style={styles.status} numberOfLines={1}>
               {!ready ? ui.openingBook : offline ? ui.offline : integrationLabel(integration, settings.language)}
             </Text>
           </View>
@@ -251,12 +255,13 @@ export default function AskMkulima() {
           style={styles.list}
           data={askMessages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: screenPad }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <BrandMark size={56} />
+              <BrandMark size={narrow ? 48 : 56} />
               <Text style={styles.emptyTitle}>{ui.emptyTitle}</Text>
               <Text style={styles.emptyBody}>{ui.emptyBody}</Text>
               <View style={styles.starters}>
@@ -298,7 +303,7 @@ export default function AskMkulima() {
         />
 
         {error ? (
-          <View style={styles.errorRow}>
+          <View style={[styles.errorRow, { marginHorizontal: screenPad }]}>
             <Text style={styles.errorText}>{error}</Text>
             <Pressable onPress={() => void send(failedQuestion)} disabled={!failedQuestion || sending} style={styles.retry}>
               <Text style={styles.retryText}>{ui.retry}</Text>
@@ -307,7 +312,7 @@ export default function AskMkulima() {
         ) : null}
 
         {pendingPhoto ? (
-          <View style={styles.photoPending}>
+          <View style={[styles.photoPending, { marginHorizontal: screenPad }]}>
             <Ionicons name="image-outline" size={16} color={colors.brandDark} />
             <Text style={styles.photoPendingText}>{ui.addPhoto}</Text>
             <Pressable onPress={() => setPendingPhoto(null)} accessibilityRole="button">
@@ -316,7 +321,7 @@ export default function AskMkulima() {
           </View>
         ) : null}
 
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingHorizontal: screenPad, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
           <Pressable onPress={() => void pickPhoto()} disabled={sending} accessibilityRole="button" accessibilityLabel={ui.addPhoto} style={[styles.voice, sending && styles.disabled]}>
             <Ionicons name="camera-outline" size={20} color={colors.brandDark} />
           </Pressable>
@@ -478,37 +483,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line
   },
   back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  title: { color: colors.ink, fontSize: 17, fontWeight: '800' },
-  status: { color: colors.muted, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  title: { color: colors.ink, fontSize: 16, fontWeight: '800' },
+  status: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: 2 },
   iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   list: { flex: 1 },
-  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md, gap: spacing.md, flexGrow: 1 },
-  empty: { alignItems: 'center', paddingTop: spacing.xxxl, paddingHorizontal: spacing.md },
-  emptyTitle: { color: colors.ink, fontSize: 22, fontWeight: '800', marginTop: spacing.lg },
-  emptyBody: { color: colors.muted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: spacing.sm, maxWidth: 320 },
-  starters: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.xl },
+  listContent: { paddingTop: spacing.md, paddingBottom: spacing.md, gap: spacing.md, flexGrow: 1 },
+  empty: { alignItems: 'center', paddingTop: spacing.xxl, paddingHorizontal: spacing.sm },
+  emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: '800', marginTop: spacing.lg },
+  emptyBody: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.sm, maxWidth: 320 },
+  starters: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.lg },
   starter: {
-    minHeight: 40,
+    minHeight: 38,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
     justifyContent: 'center',
-    paddingHorizontal: spacing.md
+    paddingHorizontal: spacing.md,
+    maxWidth: '100%'
   },
-  starterText: { color: colors.brandDark, fontWeight: '800', fontSize: 13 },
-  bubble: { maxWidth: '86%', borderRadius: 18, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  starterText: { color: colors.brandDark, fontWeight: '800', fontSize: 12 },
+  bubble: { maxWidth: '88%', borderRadius: 18, paddingHorizontal: spacing.md, paddingVertical: spacing.md },
   farmerBubble: { alignSelf: 'flex-end', backgroundColor: colors.brandDark, borderBottomRightRadius: 6 },
-  farmerText: { color: '#fff', fontSize: 16, lineHeight: 23 },
-  assistantRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, maxWidth: '94%' },
-  assistantBubble: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderBottomLeftRadius: 6 },
-  assistantText: { color: colors.text, fontSize: 16, lineHeight: 23 },
+  farmerText: { color: '#fff', fontSize: 15, lineHeight: 22 },
+  assistantRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, maxWidth: '96%' },
+  assistantBubble: { flexShrink: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderBottomLeftRadius: 6 },
+  assistantText: { color: colors.text, fontSize: 15, lineHeight: 22 },
   speakBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm },
   speakText: { color: colors.brand, fontWeight: '800', fontSize: 12 },
   fromPhone: { color: colors.faint, fontSize: 11, fontWeight: '700', marginTop: spacing.sm },
@@ -571,7 +576,6 @@ const styles = StyleSheet.create({
   },
   followUpText: { color: colors.brandDark, fontWeight: '800', fontSize: 12 },
   errorRow: {
-    marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     padding: spacing.md,
     borderRadius: radius.md,
@@ -584,7 +588,6 @@ const styles = StyleSheet.create({
   retry: { minHeight: 36, borderRadius: radius.md, backgroundColor: colors.brandDark, paddingHorizontal: spacing.md, justifyContent: 'center' },
   retryText: { color: '#fff', fontWeight: '800' },
   photoPending: {
-    marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
@@ -599,27 +602,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.lg,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
     backgroundColor: colors.canvas
   },
   input: {
     flex: 1,
-    minHeight: 48,
-    maxHeight: 120,
+    minHeight: 44,
+    maxHeight: 110,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: 15,
     color: colors.text
   },
-  send: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
-  voice: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  send: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
+  voice: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.4 }
 });

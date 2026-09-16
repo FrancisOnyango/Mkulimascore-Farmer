@@ -7,7 +7,7 @@ export const strings = {
   readinessAttention: 'Needs attention',
   tabs: {
     home: 'Home',
-    farm: 'My Farm',
+    farm: 'Farm',
     activity: 'Activity',
     insights: 'Insights',
     profile: 'Profile'
@@ -110,7 +110,7 @@ export const swahiliStrings = {
     home: 'Nyumbani',
     farm: 'Shamba',
     activity: 'Shughuli',
-    insights: 'Ufahamu',
+    insights: 'Maelezo',
     profile: 'Wasifu'
   },
   identity: {

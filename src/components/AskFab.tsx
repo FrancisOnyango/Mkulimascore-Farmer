@@ -2,9 +2,10 @@ import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { BrandMark } from '@/components/BrandMark';
-import { colors, shadow, spacing } from '@/constants/theme';
+import { colors, layout, shadow } from '@/constants/theme';
 import { ASK_UI } from '@/lib/i18n/askLanguage';
 import { useAppData } from '@/context/AppDataContext';
+import { useMobileLayout } from '@/hooks/useMobileLayout';
 import type { AskScreen } from '@/domain/ask';
 
 export function AskFab({
@@ -16,15 +17,20 @@ export function AskFab({
 }) {
   const language = useAppData().settings.language;
   const label = ASK_UI[language].title;
+  const { fabBottom, narrow, screenPad } = useMobileLayout();
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/ask', params: { screen, farmId: farmId ?? '' } })}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.fab, pressed && { opacity: 0.9 }]}
+      style={({ pressed }) => [
+        styles.fab,
+        { right: screenPad, bottom: fabBottom, maxWidth: narrow ? '72%' : undefined },
+        pressed && { opacity: 0.9 }
+      ]}
     >
-      <BrandMark size={28} />
-      <Text style={styles.label}>{label}</Text>
+      <BrandMark size={24} />
+      <Text style={styles.label} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -32,10 +38,8 @@ export function AskFab({
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    right: spacing.xl,
-    bottom: 18,
-    minHeight: 48,
-    borderRadius: 24,
+    minHeight: layout.fabClearance - 16,
+    borderRadius: 22,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.line,
@@ -45,5 +49,5 @@ const styles = StyleSheet.create({
     gap: 8,
     ...shadow.card
   },
-  label: { color: colors.ink, fontSize: 13, fontWeight: '800' }
+  label: { color: colors.ink, fontSize: 13, fontWeight: '800', flexShrink: 1 }
 });

@@ -1,7 +1,8 @@
 import React from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '@/constants/theme';
+import { colors, layout, spacing } from '@/constants/theme';
+import { useMobileLayout } from '@/hooks/useMobileLayout';
 
 export function AuthShell({
   children,
@@ -12,6 +13,7 @@ export function AuthShell({
   contentStyle?: ViewStyle;
   footer?: React.ReactNode;
 }) {
+  const { screenPad } = useMobileLayout();
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -21,9 +23,9 @@ export function AuthShell({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.content, contentStyle]}>{children}</View>
+          <View style={[styles.content, { paddingHorizontal: screenPad }, contentStyle]}>{children}</View>
         </ScrollView>
-        {footer ? <View style={styles.footer}>{footer}</View> : null}
+        {footer ? <View style={[styles.footer, { paddingHorizontal: screenPad }]}>{footer}</View> : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -33,6 +35,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   scroll: { flexGrow: 1 },
-  content: { flexGrow: 1, width: '100%', maxWidth: 520, alignSelf: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  footer: { width: '100%', maxWidth: 520, alignSelf: 'center', paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, gap: spacing.sm }
+  content: { flexGrow: 1, width: '100%', maxWidth: layout.contentMaxWidth > 520 ? 520 : layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.md },
+  footer: { width: '100%', maxWidth: 520, alignSelf: 'center', paddingBottom: spacing.md, gap: spacing.sm }
 });
+

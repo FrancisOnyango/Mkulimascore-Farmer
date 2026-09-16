@@ -46,6 +46,8 @@ export default function RootLayout() {
           headerStyle: { backgroundColor: colors.canvas },
           headerShadowVisible: false,
           headerTintColor: colors.ink,
+          headerTitleStyle: { fontSize: 17, fontWeight: '700' },
+          headerTitleAlign: 'center',
           contentStyle: { backgroundColor: colors.canvas }
         }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />

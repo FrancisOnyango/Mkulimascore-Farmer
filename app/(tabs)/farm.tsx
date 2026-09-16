@@ -102,7 +102,7 @@ export default function Farms() {
 
   return (
     <AppShell ask={{ screen: 'farm', farmId: primaryFarm?.id }}>
-      <H1>My Farm</H1>
+      <H1>Farm</H1>
       <View style={styles.titleRow}>
         <Body style={styles.lead}>Your farms, enterprises and land — kept as your record.</Body>
         <Pressable accessibilityRole="button" accessibilityLabel="Add a farm update" onPress={() => router.push({ pathname: '/add', params: { context: 'farm', farmId: primaryFarm?.id } })} style={styles.addButton}>
