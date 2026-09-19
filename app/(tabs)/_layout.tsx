@@ -12,7 +12,7 @@ function TabIcon({ name, focused }: { name: keyof typeof Ionicons.glyphMap; focu
     <Ionicons
       name={name}
       size={focused ? layout.tabBarIcon + 1 : layout.tabBarIcon}
-      color={focused ? colors.brandDark : colors.faint}
+      color={focused ? colors.info : colors.faint}
     />
   );
 }
@@ -20,7 +20,7 @@ function TabIcon({ name, focused }: { name: keyof typeof Ionicons.glyphMap; focu
 export default function TabsLayout() {
   const { settings } = useAppData();
   const strings = getStrings(settings.language);
-  const { tabBarHeight, tabBottomInset, narrow } = useMobileLayout();
+  const { tabBarHeight, tabBottomInset, compact } = useMobileLayout();
 
   return (
     <Tabs
@@ -29,25 +29,26 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.brandDark,
         tabBarInactiveTintColor: colors.muted,
         tabBarHideOnKeyboard: true,
+        tabBarAllowFontScaling: false,
         tabBarStyle: {
           height: tabBarHeight,
           paddingTop: 4,
           paddingBottom: tabBottomInset,
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: colors.line,
-          backgroundColor: colors.surface,
+          borderTopColor: 'rgba(46,53,97,0.12)',
+          backgroundColor: colors.surfaceGlass,
           elevation: 8,
-          shadowColor: '#0B1A10',
-          shadowOpacity: Platform.OS === 'ios' ? 0.06 : 0.12,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: -2 }
+          shadowColor: colors.brandDark,
+          shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0.16,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: -6 }
         },
         tabBarItemStyle: {
           paddingTop: 2,
           paddingBottom: 0
         },
         tabBarLabelStyle: {
-          fontSize: narrow ? 9 : layout.tabBarLabel,
+          fontSize: compact ? 9 : layout.tabBarLabel,
           fontWeight: '700',
           marginTop: 1,
           marginBottom: 0

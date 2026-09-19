@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BrandMark } from '@/components/BrandMark';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { useAppData } from '@/context/AppDataContext';
 import { ASK_UI, localizeAskText } from '@/lib/i18n/askLanguage';
 
@@ -28,23 +28,34 @@ export function AskBar({
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <Text style={styles.detail} numberOfLines={2}>{detail}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.faint} />
+      <View style={styles.send}>
+        <Ionicons name="sparkles" size={15} color="#fff" />
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   bar: {
-    minHeight: 56,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
+    minHeight: 64,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceGlass,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: 'rgba(255,255,255,0.72)',
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm
+    gap: spacing.sm,
+    ...shadow.card
   },
   title: { color: colors.ink, fontSize: 15, fontWeight: '800' },
-  detail: { color: colors.muted, fontSize: 12, marginTop: 2 }
+  detail: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  send: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandDark
+  }
 });

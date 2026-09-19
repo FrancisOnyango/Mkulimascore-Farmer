@@ -8,7 +8,7 @@ import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
 import { useAppData } from '@/context/AppDataContext';
 import { activityTypes } from '@/lib/enterprises/nextAction';
 import { inferFarmCycle } from '@/lib/intelligence/cycle';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { formatDate } from '@/lib/utils/format';
 
 export default function Activity() {
@@ -120,26 +120,27 @@ export default function Activity() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
-  add: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
+  add: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', ...shadow.card },
   addText: { color: '#fff', fontSize: 26, lineHeight: 30, fontWeight: '800' },
   context: {
-    backgroundColor: colors.brandSoft,
+    backgroundColor: colors.midnight,
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: '#C9E0D1'
+    borderColor: 'rgba(255,255,255,0.16)',
+    ...shadow.lift
   },
-  contextKicker: { color: colors.brand, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
-  contextTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 4 },
-  contextBody: { color: colors.muted, fontSize: 14, marginTop: 2, fontWeight: '600' },
+  contextKicker: { color: '#95A3EC', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  contextTitle: { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 4 },
+  contextBody: { color: '#DADAF0', fontSize: 14, marginTop: 2, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  chip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  chip: { minHeight: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, justifyContent: 'center', paddingHorizontal: spacing.md },
   chipOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   chipText: { color: colors.ink, fontWeight: '800', fontSize: 13 },
   chipTextOn: { color: '#fff' },
   types: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
-  type: { minHeight: 40, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, justifyContent: 'center' },
+  type: { minHeight: 40, borderRadius: radius.md, backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.line, paddingHorizontal: spacing.md, justifyContent: 'center', ...shadow.card },
   typeText: { color: colors.brandDark, fontWeight: '800', fontSize: 13 },
   sync: { color: colors.warmInk, fontWeight: '700', marginBottom: spacing.sm }
 });

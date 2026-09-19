@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Body, Caption, H2, H3, Eyebrow } from '@/components/Typography';
 import { StatusPill } from '@/components/StatusPill';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 
 type Tone = 'good' | 'attention' | 'neutral' | 'verified' | 'danger';
 
@@ -122,13 +122,13 @@ export function PlainAction({ label, onPress, primary = false }: { label: string
 }
 
 const styles = StyleSheet.create({
-  statusPanel: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg },
+  statusPanel: { backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg, ...shadow.card },
   panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   panelEyebrow: { color: colors.brand },
   panelTitle: { marginTop: spacing.md },
   panelBody: { marginTop: spacing.sm, color: colors.text },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
-  plainAction: { minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  plainAction: { minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, justifyContent: 'center', paddingHorizontal: spacing.lg },
   plainActionPrimary: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   plainActionText: { color: colors.brandDark, fontWeight: '900', fontSize: 13 },
   plainActionTextPrimary: { color: '#fff' },
@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
   sectionDetail: { marginTop: 2 },
   sectionAction: { minHeight: 36, justifyContent: 'center' },
   sectionActionText: { color: colors.info, fontWeight: '900', fontSize: 13 },
-  rows: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden' },
-  row: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, backgroundColor: colors.surface },
+  rows: { backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, overflow: 'hidden', ...shadow.card },
+  row: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, backgroundColor: 'transparent' },
   rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
   rowText: { flex: 1, minWidth: 0 },
   rowValue: { color: colors.ink, fontWeight: '900' },

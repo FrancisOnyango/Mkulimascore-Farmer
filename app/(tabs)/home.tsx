@@ -14,7 +14,7 @@ import { buildHomeCards } from '@/lib/intelligence/homeCards';
 import { loadFarmEarlyWarnings } from '@/lib/warnings/load';
 import { FarmerAppService } from '@/application/FarmerAppService';
 import type { FarmerAlert } from '@/domain/warnings';
-import { colors, layout, radius, shadow, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { useMobileLayout } from '@/hooks/useMobileLayout';
 import { weatherFreshnessLabel } from '@/lib/weather/liveWeather';
 
@@ -42,13 +42,21 @@ export default function Home() {
   const { screenPad, narrow } = useMobileLayout();
   const [earlyWarnings, setEarlyWarnings] = useState<FarmerAlert[]>([]);
 
-  const farm = farms.find((item) => item.id === selectedFarmId) ?? farms[0];
-  const farmEnterprises = farm ? enterprises.filter((item) => item.farmId === farm.id) : enterprises;
-  const farmWeather = weather.find((item) => item.farmId === farm?.id) ?? (farm ? undefined : weather[0]);
+  const farm = useMemo(
+    () => farms.find((item) => item.id === selectedFarmId) ?? farms[0],
+    [farms, selectedFarmId]
+  );
+  const farmEnterprises = useMemo(
+    () => farm ? enterprises.filter((item) => item.farmId === farm.id) : enterprises,
+    [enterprises, farm]
+  );
+  const farmWeather = useMemo(
+    () => weather.find((item) => item.farmId === farm?.id) ?? (farm ? undefined : weather[0]),
+    [farm, weather]
+  );
 
   useEffect(() => {
     if (!ready || !farm) {
-      setEarlyWarnings([]);
       return;
     }
     let cancelled = false;
@@ -61,7 +69,7 @@ export default function Home() {
       if (!cancelled) setEarlyWarnings(items);
     });
     return () => { cancelled = true; };
-  }, [ready, farm?.id, farmWeather?.id, farmEnterprises.length, settings.language, farm?.exposure?.notedAt]);
+  }, [ready, farm, farmWeather, farmEnterprises, settings.language]);
 
   if (!ready || !passport) {
     return (
@@ -94,7 +102,7 @@ export default function Home() {
     consents,
     requests,
     alerts,
-    earlyWarnings,
+    earlyWarnings: farm ? earlyWarnings.filter((item) => item.farmId === farm.id) : [],
     weather: farmWeather,
     activityTitles: activity.slice(0, 2).map((item) => item.title)
   });
@@ -125,12 +133,13 @@ export default function Home() {
     <AppShell>
       <View style={[styles.heroWash, { marginHorizontal: -screenPad, paddingHorizontal: screenPad }]}>
         <View style={styles.top}>
-          <BrandMark size={narrow ? 38 : 44} />
+          <BrandMark size={narrow ? 38 : 44} light />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.hello, narrow && styles.helloNarrow]} numberOfLines={1}>
+            <Text style={styles.overline}>Mkulima daily overview</Text>
+            <Text style={[styles.hello, narrow && styles.helloNarrow]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
               {brief.hello}, {brief.firstName}
             </Text>
-            <Text style={styles.place} numberOfLines={1}>{brief.placeLine || 'Your farm'}</Text>
+            <Text style={styles.place} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{brief.placeLine || 'Your farm'}</Text>
             <Text style={styles.date}>{today}</Text>
           </View>
           <Pressable onPress={() => router.push('/notifications')} accessibilityRole="button" accessibilityLabel="Notifications" style={styles.bell}>
@@ -270,42 +279,46 @@ function MetricChip({ label, value, tone }: { label: string; value: string; tone
 
 const styles = StyleSheet.create({
   heroWash: {
-    paddingBottom: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.brandSoft
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    marginBottom: spacing.md,
+    backgroundColor: colors.midnight,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl
   },
   top: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.sm },
-  hello: { color: colors.ink, fontSize: 24, lineHeight: 30, fontWeight: '800' },
+  overline: { color: '#95A3EC', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  hello: { color: '#fff', fontSize: 25, lineHeight: 31, fontWeight: '800' },
   helloNarrow: { fontSize: 21, lineHeight: 26 },
-  place: { color: colors.muted, fontSize: 14, marginTop: 2, fontWeight: '700' },
-  date: { color: colors.faint, fontSize: 12, marginTop: 2, fontWeight: '600' },
-  bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
+  place: { color: '#DADAF0', fontSize: 14, marginTop: 2, fontWeight: '700' },
+  date: { color: '#95A3EC', fontSize: 12, marginTop: 2, fontWeight: '600' },
+  bell: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   bellText: { color: '#fff', fontWeight: '800' },
   switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
-  farmChip: { minHeight: 34, borderRadius: 17, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  farmChip: { minHeight: 34, borderRadius: 17, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, justifyContent: 'center', paddingHorizontal: spacing.md },
   farmChipOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   farmChipText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
   farmChipTextOn: { color: '#fff' },
   mapWrap: { borderRadius: radius.xl, overflow: 'hidden', marginBottom: spacing.md, ...shadow.card },
   mapHint: { color: colors.faint, fontSize: 12, fontWeight: '700', marginTop: 6, marginBottom: spacing.sm },
   warningSlot: { marginBottom: spacing.sm },
-  today: { backgroundColor: colors.brandDark, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md },
+  today: { backgroundColor: colors.midnight, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...shadow.lift },
   todayTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   todayKicker: { flexShrink: 1, color: '#C9E6D1', fontSize: 11, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   pill: { maxWidth: '46%', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   pillWarm: { backgroundColor: 'rgba(243,228,192,0.22)' },
   pillHot: { backgroundColor: 'rgba(166,84,63,0.35)' },
   pillText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  todayLink: { color: '#9FD0B0', fontWeight: '800', marginTop: spacing.md },
+  todayLink: { color: '#95A3EC', fontWeight: '800', marginTop: spacing.md },
   lead: { color: '#fff', fontSize: 20, lineHeight: 26, fontWeight: '800', marginTop: spacing.md },
   leadNarrow: { fontSize: 18, lineHeight: 24 },
   weatherLine: { color: '#D8E8DE', fontSize: 14, lineHeight: 20, marginTop: spacing.sm },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: spacing.sm },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#9FD0B0', marginTop: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#95A3EC', marginTop: 8 },
   line: { flex: 1, color: '#D8E8DE', fontSize: 14, lineHeight: 21 },
   kicker: { color: colors.brand, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: spacing.sm },
   weatherPanel: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceGlass,
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.line,
@@ -320,7 +333,7 @@ const styles = StyleSheet.create({
   chip: { flex: 1, minWidth: 0, borderRadius: radius.md, padding: spacing.md, minHeight: 58, justifyContent: 'space-between' },
   chipLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
   chipValue: { fontSize: 15, fontWeight: '800', marginTop: 4 },
-  block: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md, ...shadow.card },
+  block: { backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: spacing.lg, marginBottom: spacing.md, ...shadow.card },
   title: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: spacing.xs },
   body: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 4 },
   recent: { marginTop: spacing.sm, marginBottom: spacing.lg },

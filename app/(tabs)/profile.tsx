@@ -7,7 +7,7 @@ import { FarmerRow, FarmerSection } from '@/components/FarmerUX';
 import { AskBar } from '@/components/AskBar';
 import { useAppData } from '@/context/AppDataContext';
 import { BrandMark } from '@/components/BrandMark';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { createAuthService } from '@/lib/auth/AuthService';
 import { consentStatusLabel } from '@/lib/copy/status';
 
@@ -34,10 +34,11 @@ export default function Profile() {
   return (
     <AppShell ask={{ screen: 'profile' }}>
       <View style={styles.hero}>
-        <BrandMark size={48} />
+        <BrandMark size={48} light />
         <View style={{ flex: 1 }}>
-          <H1>{passport.displayName || 'Farmer'}</H1>
-          <Caption style={{ marginTop: spacing.xs }}>{passport.location || passport.phoneMasked}</Caption>
+          <Text style={styles.heroKicker}>Mkulima Passport</Text>
+          <H1 style={styles.heroTitle}>{passport.displayName || 'Farmer'}</H1>
+          <Caption style={styles.heroCopy}>{passport.location || passport.phoneMasked}</Caption>
         </View>
       </View>
       <View style={{ marginTop: spacing.lg }}>
@@ -85,7 +86,10 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  logout: { minHeight: 48, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xl, marginBottom: spacing.md },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.midnight, borderRadius: radius.xl, padding: spacing.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...shadow.lift },
+  heroKicker: { color: '#95A3EC', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: spacing.xs },
+  heroTitle: { color: '#fff' },
+  heroCopy: { color: '#DADAF0', marginTop: spacing.xs },
+  logout: { minHeight: 48, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.surfaceGlass, alignItems: 'center', justifyContent: 'center', marginTop: spacing.xl, marginBottom: spacing.md },
   logoutText: { color: colors.danger, fontWeight: '800', fontSize: 15 }
 });

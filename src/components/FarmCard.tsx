@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { FarmPlaceMap } from '@/components/FarmPlaceMap';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 import { verificationShort } from '@/lib/copy/status';
 import { formatFarmArea } from '@/lib/utils/format';
 import type { Enterprise, Farm } from '@/domain/types';
@@ -64,15 +64,16 @@ export function FarmCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceGlass,
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.line,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    ...shadow.card
   },
   emptyMap: {
     minHeight: 132,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.brandSoft,
     justifyContent: 'center',
     padding: spacing.xl
   },

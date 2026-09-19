@@ -13,9 +13,9 @@ export function AuthShell({
   contentStyle?: ViewStyle;
   footer?: React.ReactNode;
 }) {
-  const { screenPad } = useMobileLayout();
+  const { screenPad, short } = useMobileLayout();
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.flex}
@@ -23,7 +23,7 @@ export function AuthShell({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.content, { paddingHorizontal: screenPad }, contentStyle]}>{children}</View>
+          <View style={[styles.content, short && styles.contentShort, { paddingHorizontal: screenPad }, contentStyle]}>{children}</View>
         </ScrollView>
         {footer ? <View style={[styles.footer, { paddingHorizontal: screenPad }]}>{footer}</View> : null}
       </KeyboardAvoidingView>
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1 },
   scroll: { flexGrow: 1 },
-  content: { flexGrow: 1, width: '100%', maxWidth: layout.contentMaxWidth > 520 ? 520 : layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.md },
-  footer: { width: '100%', maxWidth: 520, alignSelf: 'center', paddingBottom: spacing.md, gap: spacing.sm }
+  content: { flexGrow: 1, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingTop: spacing.md },
+  contentShort: { paddingTop: spacing.xs },
+  footer: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingBottom: spacing.md, gap: spacing.sm }
 });
-

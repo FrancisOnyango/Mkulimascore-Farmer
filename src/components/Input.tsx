@@ -22,6 +22,7 @@ export function Input({
         {...props}
         style={[styles.input, props.multiline && styles.multiline, props.style]}
         accessibilityLabel={props.accessibilityLabel ?? label}
+        maxFontSizeMultiplier={props.maxFontSizeMultiplier ?? 1.35}
       />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
@@ -38,7 +39,7 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: spacing.lg },
   label: { color: colors.ink, fontSize: 15, fontWeight: '800', marginBottom: spacing.sm },
   input: {
-    minHeight: 54,
+    minHeight: 56,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.line,

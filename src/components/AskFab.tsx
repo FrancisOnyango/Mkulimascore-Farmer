@@ -40,14 +40,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     minHeight: layout.fabClearance - 16,
     borderRadius: 22,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.midnight,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     ...shadow.card
   },
-  label: { color: colors.ink, fontSize: 13, fontWeight: '800', flexShrink: 1 }
+  label: { color: '#fff', fontSize: 13, fontWeight: '800', flexShrink: 1 }
 });

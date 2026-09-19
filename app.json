@@ -8,7 +8,7 @@
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F5F3EA"
+      "backgroundColor": "#F2EEF6"
     },
     "scheme": "mkulima",
     "userInterfaceStyle": "light",
@@ -16,8 +16,10 @@
       "package": "com.mkulimascore.farmer",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F3EA"
+        "backgroundColor": "#F2EEF6"
       },
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": true,
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES",
@@ -30,7 +32,8 @@
     },
     "ios": {
       "bundleIdentifier": "com.mkulimascore.farmer",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "requireFullScreen": false
     },
     "web": {
       "bundler": "metro",

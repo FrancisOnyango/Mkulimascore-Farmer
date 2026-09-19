@@ -31,14 +31,16 @@ export function ActionTile({
       <View style={[styles.iconWrap, dark && styles.iconWrapDark]}>
         <Ionicons name={icon} size={22} color={dark ? '#fff' : colors.brandDark} />
       </View>
-      <Text style={[styles.label, dark && styles.labelDark]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.25} style={[styles.label, dark && styles.labelDark]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   tile: {
-    width: '48%',
+    flexBasis: '47%',
+    flexGrow: 1,
+    minWidth: 142,
     minHeight: 96,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,

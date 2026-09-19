@@ -230,7 +230,7 @@ export default function AskMkulima() {
   const lastAssistantId = [...askMessages].reverse().find((item) => item.role === 'assistant')?.id;
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
       <AppShell scroll={false} contentStyle={styles.shell}>
         <View style={[styles.header, { paddingHorizontal: screenPad }]}>
           <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}>
@@ -258,6 +258,7 @@ export default function AskMkulima() {
           contentContainerStyle={[styles.listContent, { paddingHorizontal: screenPad }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -334,6 +335,7 @@ export default function AskMkulima() {
             maxLength={400}
             editable={!sending}
             accessibilityLabel="Question for Ask Mkulima"
+            maxFontSizeMultiplier={1.3}
             style={styles.input}
           />
           {showVoice ? (

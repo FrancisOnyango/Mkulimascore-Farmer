@@ -1,29 +1,34 @@
 export const colors = {
-  brand: '#2F9E5B',
-  brandDark: '#146B3A',
-  brandSoft: '#E8F6EE',
-  ink: '#122018',
-  text: '#1F2E27',
-  muted: '#5A6B62',
-  faint: '#7A8A81',
-  line: '#E3EAE5',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F3F7F4',
-  canvas: '#F4F7F5',
-  warm: '#FFF4D8',
-  warmInk: '#8A5A12',
-  success: '#1F8A4D',
+  brand: '#505DC3',
+  brandDark: '#2E3561',
+  brandSoft: '#EFE4F0',
+  brandMist: '#F7F1FA',
+  accent: '#9277D1',
+  accentSoft: '#ECE6FA',
+  ink: '#202542',
+  text: '#34395D',
+  muted: '#687092',
+  faint: '#95A3B8',
+  line: '#DDD5E6',
+  surface: '#FFFBFF',
+  surfaceAlt: '#F5F0F8',
+  surfaceGlass: 'rgba(255,255,255,0.72)',
+  canvas: '#F2EEF6',
+  warm: '#FFF0D7',
+  warmInk: '#946018',
+  success: '#247A56',
   warning: '#D97706',
-  warningSoft: '#FEF3C7',
-  danger: '#C2410C',
-  dangerSoft: '#FFEDD5',
-  info: '#0284C7',
-  infoSoft: '#E0F2FE',
-  water: '#0EA5E9',
-  waterSoft: '#E0F7FF',
-  clay: '#B45309',
-  claySoft: '#FFF7ED',
-  dark: '#0B1611'
+  warningSoft: '#FFF0D7',
+  danger: '#B94A3B',
+  dangerSoft: '#FBE4E1',
+  info: '#599BE8',
+  infoSoft: '#E7F1FF',
+  water: '#599BE8',
+  waterSoft: '#E7F1FF',
+  clay: '#A15C45',
+  claySoft: '#F5E7E2',
+  dark: '#171B34',
+  midnight: '#10142B'
 } as const;
 
 export const radius = {
@@ -46,10 +51,16 @@ export const spacing = {
 
 /** Mobile chrome — keep screens, tab bar and FAB aligned. */
 export const layout = {
+  screenPadCompact: 12,
   /** Horizontal inset for phone content (narrower than tablet). */
   screenPad: 16,
   screenPadWide: 20,
-  contentMaxWidth: 760,
+  contentMaxWidth: 820,
+  formMaxWidth: 560,
+  compactWidth: 360,
+  narrowWidth: 390,
+  tabletWidth: 768,
+  shortHeight: 700,
   /** Tab bar content row (icons + labels), excluding home-indicator inset. */
   tabBarContent: 52,
   tabBarIcon: 22,
@@ -64,14 +75,22 @@ export const layout = {
 
 export const shadow = {
   card: {
-    shadowColor: '#0B1A10',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2
+    shadowColor: '#2E3561',
+    shadowOpacity: 0.11,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 4
+  },
+  lift: {
+    shadowColor: '#2E3561',
+    shadowOpacity: 0.18,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 7
   }
 };
 
 export const touch = {
-  min: 44
+  min: 44,
+  comfortable: 48
 } as const;

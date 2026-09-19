@@ -5,7 +5,7 @@ import { AppShell } from '@/components/AppShell';
 import { AskBar } from '@/components/AskBar';
 import { Caption, H1, H3 } from '@/components/Typography';
 import { useAppData } from '@/context/AppDataContext';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 
 const sections = [
   { title: 'For my farm', detail: 'Health, season and the living farm profile', route: '/(tabs)/farm' },
@@ -20,8 +20,11 @@ export default function Insights() {
 
   return (
     <AppShell ask={{ screen: 'insights' }}>
-      <H1>Insights</H1>
-      <Caption style={{ marginTop: spacing.sm }}>Weather, early warning, markets and profile — from the farm, not a dashboard.</Caption>
+      <View style={styles.hero}>
+        <Text style={styles.heroKicker}>Intelligence layer</Text>
+        <H1 style={styles.heroTitle}>Insights</H1>
+        <Caption style={styles.heroCopy}>Weather, early warning, markets and profile - from the farm, not a dashboard.</Caption>
+      </View>
       <View style={{ marginTop: spacing.lg }}>
         <AskBar hint="Weather, prices or why the profile needs work" onPress={() => router.push({ pathname: '/ask', params: { screen: 'insights' } })} />
       </View>
@@ -56,11 +59,15 @@ export default function Insights() {
 }
 
 const styles = StyleSheet.create({
+  hero: { backgroundColor: colors.midnight, borderRadius: radius.xl, padding: spacing.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', ...shadow.lift },
+  heroKicker: { color: '#95A3EC', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: spacing.xs },
+  heroTitle: { color: '#fff' },
+  heroCopy: { color: '#DADAF0', marginTop: spacing.sm },
   switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
-  farmChip: { minHeight: 38, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  farmChip: { minHeight: 38, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, justifyContent: 'center', paddingHorizontal: spacing.md },
   farmChipActive: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   farmChipText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
   farmChipTextActive: { color: '#fff' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surfaceGlass, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: spacing.lg, ...shadow.card },
   link: { color: colors.info, fontWeight: '800' }
 });

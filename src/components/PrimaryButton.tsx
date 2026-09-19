@@ -8,7 +8,7 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
 }) {
-  const background = variant === 'primary' ? colors.brandDark : variant === 'danger' ? colors.claySoft : colors.surface;
+  const background = variant === 'primary' ? colors.brandDark : variant === 'danger' ? colors.claySoft : colors.surfaceGlass;
   const foreground = variant === 'primary' ? '#fff' : variant === 'danger' ? colors.danger : colors.brandDark;
   return (
     <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [
@@ -17,11 +17,11 @@ export function PrimaryButton({ label, onPress, disabled = false, variant = 'pri
       disabled && { opacity: 0.45 },
       pressed && { opacity: 0.85 }
     ]} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}>
-      <Text style={[styles.label, { color: foreground }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.25} style={[styles.label, { color: foreground }]}>{label}</Text>
     </Pressable>
   );
 }
 const styles = StyleSheet.create({
-  button: { minHeight: 54, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, borderWidth: 1 },
+  button: { minHeight: 56, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, borderWidth: 1 },
   label: { fontSize: 15, fontWeight: '800', letterSpacing: 0 }
 });

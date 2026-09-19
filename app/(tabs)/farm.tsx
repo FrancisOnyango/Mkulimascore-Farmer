@@ -18,7 +18,7 @@ import { listFarmerPlaces } from '@/db/database';
 import type { AgriculturalPlace, PlaceFilter } from '@/domain/places';
 import { buildFarmTwin } from '@/lib/intelligence/twin';
 import { listNearbyPlaces } from '@/lib/places/nearby';
-import { colors, radius, spacing } from '@/constants/theme';
+import { colors, radius, shadow, spacing } from '@/constants/theme';
 
 const EXPOSURE_OPTIONS = [
   { key: 'nearWaterway' as const, label: 'Near a river, stream or drain' },
@@ -275,18 +275,18 @@ function Metric({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   lead: { color: colors.muted, marginTop: spacing.sm },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
-  addButton: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.brandDark, alignItems: 'center', justifyContent: 'center' },
+  addButton: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: colors.midnight, alignItems: 'center', justifyContent: 'center', ...shadow.card },
   addText: { color: '#fff', fontSize: 24, lineHeight: 28, fontWeight: '900' },
   switcher: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
-  farmChip: { minHeight: 38, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, justifyContent: 'center', paddingHorizontal: spacing.md },
+  farmChip: { minHeight: 38, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, justifyContent: 'center', paddingHorizontal: spacing.md },
   farmChipActive: { backgroundColor: colors.brandDark, borderColor: colors.brandDark },
   farmChipText: { color: colors.muted, fontWeight: '800', fontSize: 12 },
   farmChipTextActive: { color: '#fff' },
-  progressCard: { marginTop: spacing.md, backgroundColor: colors.brandSoft, borderColor: '#C9E0D1' },
-  exposureCard: { marginTop: spacing.md, backgroundColor: colors.waterSoft, borderColor: '#B8E4F5' },
+  progressCard: { marginTop: spacing.md, backgroundColor: colors.brandSoft, borderColor: '#D8CBE1' },
+  exposureCard: { marginTop: spacing.md, backgroundColor: colors.infoSoft, borderColor: '#C7DDFC' },
   exposureList: { marginTop: spacing.lg, marginBottom: spacing.md, gap: spacing.sm },
-  exposureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, paddingHorizontal: spacing.md },
-  exposureRowOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  exposureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surfaceGlass, paddingHorizontal: spacing.md },
+  exposureRowOn: { borderColor: colors.brand, backgroundColor: colors.accentSoft },
   exposureCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.line, textAlign: 'center', lineHeight: 20, color: colors.brandDark, fontWeight: '800' },
   exposureCheckOn: { backgroundColor: colors.brandDark, borderColor: colors.brandDark, color: '#fff' },
   exposureLabel: { flex: 1, color: colors.text, fontWeight: '700', fontSize: 14 },
@@ -294,9 +294,9 @@ const styles = StyleSheet.create({
   overviewCard: { marginTop: spacing.md },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, alignItems: 'flex-start' },
   farmCard: { overflow: 'hidden' },
-  farmRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.brand },
+  farmRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.info },
   metrics: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
-  metricBox: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.md },
+  metricBox: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: 'rgba(46,53,97,0.08)' },
   value: { fontWeight: '800', marginTop: 3 },
   rule: { height: 1, backgroundColor: colors.line, marginVertical: spacing.lg }
 });
